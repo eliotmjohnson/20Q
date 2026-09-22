@@ -14,309 +14,322 @@ export type GuessNode = {
 
 export type TreeNode = QuestionNode | GuessNode
 
-export const STORAGE_KEY = 'twentyq-tree-v1'
+/** Bumped so seed-tune early splits replace old localStorage trees. */
+export const STORAGE_KEY = 'twentyq-tree-v2'
 export const MAX_QUESTIONS = 20
 
-/** Seed: animals, objects, people — enough to play day one. */
-export const seedTree: TreeNode = {
+const personTree: TreeNode = {
   kind: 'question',
-  text: 'Is it a living thing?',
+  text: 'Is it a fictional character?',
   yes: {
     kind: 'question',
-    text: 'Is it an animal?',
+    text: 'Are they from a movie or TV show?',
     yes: {
       kind: 'question',
-      text: 'Does it live in water?',
+      text: 'Are they a superhero?',
+      yes: { kind: 'guess', name: 'Spider-Man' },
+      no: { kind: 'guess', name: 'Harry Potter' },
+    },
+    no: {
+      kind: 'question',
+      text: 'Are they from a video game?',
+      yes: { kind: 'guess', name: 'Mario' },
+      no: { kind: 'guess', name: 'Sherlock Holmes' },
+    },
+  },
+  no: {
+    kind: 'question',
+    text: 'Are they known for music?',
+    yes: { kind: 'guess', name: 'Taylor Swift' },
+    no: {
+      kind: 'question',
+      text: 'Are they a historical figure?',
       yes: {
         kind: 'question',
-        text: 'Is it a mammal?',
-        yes: { kind: 'guess', name: 'a dolphin' },
+        text: 'Were they a US president?',
+        yes: { kind: 'guess', name: 'Abraham Lincoln' },
+        no: { kind: 'guess', name: 'Albert Einstein' },
+      },
+      no: {
+        kind: 'question',
+        text: 'Are they an athlete?',
+        yes: { kind: 'guess', name: 'Michael Jordan' },
+        no: { kind: 'guess', name: 'Oprah Winfrey' },
+      },
+    },
+  },
+}
+
+const animalTree: TreeNode = {
+  kind: 'question',
+  text: 'Does it live in water?',
+  yes: {
+    kind: 'question',
+    text: 'Is it a mammal?',
+    yes: { kind: 'guess', name: 'a dolphin' },
+    no: {
+      kind: 'question',
+      text: 'Does it have a shell?',
+      yes: { kind: 'guess', name: 'a turtle' },
+      no: {
+        kind: 'question',
+        text: 'Is it a fish people often eat?',
+        yes: { kind: 'guess', name: 'a salmon' },
+        no: { kind: 'guess', name: 'a shark' },
+      },
+    },
+  },
+  no: {
+    kind: 'question',
+    text: 'Does it fly?',
+    yes: {
+      kind: 'question',
+      text: 'Is it a bird?',
+      yes: {
+        kind: 'question',
+        text: 'Is it a bird of prey?',
+        yes: { kind: 'guess', name: 'an eagle' },
         no: {
           kind: 'question',
-          text: 'Does it have a shell?',
-          yes: { kind: 'guess', name: 'a turtle' },
-          no: {
-            kind: 'question',
-            text: 'Is it a fish people often eat?',
-            yes: { kind: 'guess', name: 'a salmon' },
-            no: { kind: 'guess', name: 'a shark' },
-          },
+          text: 'Does it talk or mimic speech?',
+          yes: { kind: 'guess', name: 'a parrot' },
+          no: { kind: 'guess', name: 'a pigeon' },
+        },
+      },
+      no: { kind: 'guess', name: 'a bat' },
+    },
+    no: {
+      kind: 'question',
+      text: 'Is it a pet?',
+      yes: {
+        kind: 'question',
+        text: 'Does it meow?',
+        yes: { kind: 'guess', name: 'a cat' },
+        no: {
+          kind: 'question',
+          text: 'Does it bark?',
+          yes: { kind: 'guess', name: 'a dog' },
+          no: { kind: 'guess', name: 'a hamster' },
         },
       },
       no: {
         kind: 'question',
-        text: 'Does it fly?',
+        text: 'Is it a farm animal?',
         yes: {
           kind: 'question',
-          text: 'Is it a bird?',
-          yes: {
+          text: 'Does it say moo?',
+          yes: { kind: 'guess', name: 'a cow' },
+          no: {
             kind: 'question',
-            text: 'Is it a bird of prey?',
-            yes: { kind: 'guess', name: 'an eagle' },
-            no: {
-              kind: 'question',
-              text: 'Does it talk or mimic speech?',
-              yes: { kind: 'guess', name: 'a parrot' },
-              no: { kind: 'guess', name: 'a pigeon' },
-            },
+            text: 'Does it have a snout and say oink?',
+            yes: { kind: 'guess', name: 'a pig' },
+            no: { kind: 'guess', name: 'a horse' },
           },
-          no: { kind: 'guess', name: 'a bat' },
         },
         no: {
           kind: 'question',
-          text: 'Is it a pet?',
+          text: 'Is it a big cat?',
           yes: {
             kind: 'question',
-            text: 'Does it meow?',
-            yes: { kind: 'guess', name: 'a cat' },
-            no: {
-              kind: 'question',
-              text: 'Does it bark?',
-              yes: { kind: 'guess', name: 'a dog' },
-              no: { kind: 'guess', name: 'a hamster' },
-            },
+            text: 'Does it have a mane?',
+            yes: { kind: 'guess', name: 'a lion' },
+            no: { kind: 'guess', name: 'a tiger' },
           },
           no: {
             kind: 'question',
-            text: 'Is it a farm animal?',
-            yes: {
-              kind: 'question',
-              text: 'Does it say moo?',
-              yes: { kind: 'guess', name: 'a cow' },
-              no: {
-                kind: 'question',
-                text: 'Does it have a snout and say oink?',
-                yes: { kind: 'guess', name: 'a pig' },
-                no: { kind: 'guess', name: 'a horse' },
-              },
-            },
+            text: 'Is it an elephant?',
+            yes: { kind: 'guess', name: 'an elephant' },
             no: {
               kind: 'question',
-              text: 'Is it a big cat?',
-              yes: {
-                kind: 'question',
-                text: 'Does it have a mane?',
-                yes: { kind: 'guess', name: 'a lion' },
-                no: { kind: 'guess', name: 'a tiger' },
-              },
-              no: {
-                kind: 'question',
-                text: 'Is it an elephant?',
-                yes: { kind: 'guess', name: 'an elephant' },
-                no: {
-                  kind: 'question',
-                  text: 'Does it hop?',
-                  yes: { kind: 'guess', name: 'a kangaroo' },
-                  no: { kind: 'guess', name: 'a bear' },
-                },
-              },
+              text: 'Does it hop?',
+              yes: { kind: 'guess', name: 'a kangaroo' },
+              no: { kind: 'guess', name: 'a bear' },
             },
           },
         },
       },
     },
+  },
+}
+
+const plantTree: TreeNode = {
+  kind: 'question',
+  text: 'Is it a tree?',
+  yes: { kind: 'guess', name: 'an oak tree' },
+  no: {
+    kind: 'question',
+    text: 'Is it a flower?',
+    yes: { kind: 'guess', name: 'a rose' },
+    no: { kind: 'guess', name: 'grass' },
+  },
+}
+
+const handheldTree: TreeNode = {
+  kind: 'question',
+  text: 'Is it electronic?',
+  yes: {
+    kind: 'question',
+    text: 'Is it a phone?',
+    yes: { kind: 'guess', name: 'a smartphone' },
     no: {
       kind: 'question',
-      text: 'Is it a plant?',
+      text: 'Do you wear it or put it on your head?',
+      yes: { kind: 'guess', name: 'headphones' },
+      no: {
+        kind: 'question',
+        text: 'Is it used for typing?',
+        yes: { kind: 'guess', name: 'a laptop' },
+        no: { kind: 'guess', name: 'a remote control' },
+      },
+    },
+  },
+  no: {
+    kind: 'question',
+    text: 'Is it food or drink?',
+    yes: {
+      kind: 'question',
+      text: 'Is it a drink?',
       yes: {
         kind: 'question',
-        text: 'Is it a tree?',
-        yes: {
-          kind: 'question',
-          text: 'Does it grow fruit you can eat?',
-          yes: { kind: 'guess', name: 'an apple tree' },
-          no: { kind: 'guess', name: 'an oak tree' },
-        },
-        no: {
-          kind: 'question',
-          text: 'Is it a flower?',
-          yes: { kind: 'guess', name: 'a rose' },
-          no: { kind: 'guess', name: 'grass' },
-        },
+        text: 'Is it coffee?',
+        yes: { kind: 'guess', name: 'coffee' },
+        no: { kind: 'guess', name: 'water' },
       },
       no: {
         kind: 'question',
-        text: 'Is it a person (real or fictional)?',
-        yes: {
+        text: 'Is it sweet?',
+        yes: { kind: 'guess', name: 'a cookie' },
+        no: { kind: 'guess', name: 'a sandwich' },
+      },
+    },
+    no: {
+      kind: 'question',
+      text: 'Is it used for writing?',
+      yes: { kind: 'guess', name: 'a pen' },
+      no: {
+        kind: 'question',
+        text: 'Is it made of paper?',
+        yes: { kind: 'guess', name: 'a book' },
+        no: {
           kind: 'question',
-          text: 'Is it a fictional character?',
+          text: 'Do you wear it?',
           yes: {
             kind: 'question',
-            text: 'Are they from a movie or TV show?',
-            yes: {
-              kind: 'question',
-              text: 'Are they a superhero?',
-              yes: { kind: 'guess', name: 'Spider-Man' },
-              no: { kind: 'guess', name: 'Harry Potter' },
-            },
-            no: {
-              kind: 'question',
-              text: 'Are they from a video game?',
-              yes: { kind: 'guess', name: 'Mario' },
-              no: { kind: 'guess', name: 'Sherlock Holmes' },
-            },
+            text: 'Is it footwear?',
+            yes: { kind: 'guess', name: 'sneakers' },
+            no: { kind: 'guess', name: 'a hat' },
           },
           no: {
             kind: 'question',
-            text: 'Are they known for music?',
-            yes: { kind: 'guess', name: 'Taylor Swift' },
-            no: {
-              kind: 'question',
-              text: 'Are they a historical figure?',
-              yes: {
-                kind: 'question',
-                text: 'Were they a US president?',
-                yes: { kind: 'guess', name: 'Abraham Lincoln' },
-                no: { kind: 'guess', name: 'Albert Einstein' },
-              },
-              no: {
-                kind: 'question',
-                text: 'Are they an athlete?',
-                yes: { kind: 'guess', name: 'Michael Jordan' },
-                no: { kind: 'guess', name: 'Oprah Winfrey' },
-              },
-            },
+            text: 'Is it a key?',
+            yes: { kind: 'guess', name: 'a key' },
+            no: { kind: 'guess', name: 'a coin' },
           },
         },
+      },
+    },
+  },
+}
+
+const bigThingsTree: TreeNode = {
+  kind: 'question',
+  text: 'Is it a vehicle?',
+  yes: {
+    kind: 'question',
+    text: 'Does it fly?',
+    yes: { kind: 'guess', name: 'an airplane' },
+    no: {
+      kind: 'question',
+      text: 'Does it travel on water?',
+      yes: { kind: 'guess', name: 'a boat' },
+      no: {
+        kind: 'question',
+        text: 'Is it a car?',
+        yes: { kind: 'guess', name: 'a car' },
+        no: { kind: 'guess', name: 'a bicycle' },
+      },
+    },
+  },
+  no: {
+    kind: 'question',
+    text: 'Is it a building or place?',
+    yes: {
+      kind: 'question',
+      text: 'Is it a famous landmark?',
+      yes: {
+        kind: 'question',
+        text: 'Is it in France?',
+        yes: { kind: 'guess', name: 'the Eiffel Tower' },
+        no: { kind: 'guess', name: 'the Statue of Liberty' },
+      },
+      no: {
+        kind: 'question',
+        text: 'Do people live there?',
+        yes: { kind: 'guess', name: 'a house' },
+        no: { kind: 'guess', name: 'a school' },
+      },
+    },
+    no: {
+      kind: 'question',
+      text: 'Is it furniture?',
+      yes: {
+        kind: 'question',
+        text: 'Do you sit on it?',
+        yes: { kind: 'guess', name: 'a chair' },
+        no: { kind: 'guess', name: 'a table' },
+      },
+      no: {
+        kind: 'question',
+        text: 'Is it in the sky / space?',
+        yes: {
+          kind: 'question',
+          text: 'Is it the Sun?',
+          yes: { kind: 'guess', name: 'the Sun' },
+          no: { kind: 'guess', name: 'the Moon' },
+        },
+        no: {
+          kind: 'question',
+          text: 'Is it a mountain?',
+          yes: { kind: 'guess', name: 'a mountain' },
+          no: { kind: 'guess', name: 'the ocean' },
+        },
+      },
+    },
+  },
+}
+
+/**
+ * Seed order (PO seed tune):
+ * 1) Living?
+ * 2) Living yes → Person? before animal/plant
+ * 3) Living no → Bigger than a breadbox?
+ * 4) Living + not person → Animal? then thin plant leftover
+ * 5) Not living → breadbox yes = vehicle/place/furniture; no = hand-held
+ */
+export const seedTree: TreeNode = {
+  kind: 'question',
+  text: 'Is it a living thing?',
+  yes: {
+    kind: 'question',
+    text: 'Is it a person (real or fictional)?',
+    yes: personTree,
+    no: {
+      kind: 'question',
+      text: 'Is it an animal?',
+      yes: animalTree,
+      no: {
+        kind: 'question',
+        text: 'Is it a plant?',
+        yes: plantTree,
         no: { kind: 'guess', name: 'a bacterium' },
       },
     },
   },
   no: {
     kind: 'question',
-    text: 'Is it something you can hold in your hand?',
-    yes: {
-      kind: 'question',
-      text: 'Is it electronic?',
-      yes: {
-        kind: 'question',
-        text: 'Is it a phone?',
-        yes: { kind: 'guess', name: 'a smartphone' },
-        no: {
-          kind: 'question',
-          text: 'Do you wear it or put it on your head?',
-          yes: { kind: 'guess', name: 'headphones' },
-          no: {
-            kind: 'question',
-            text: 'Is it used for typing?',
-            yes: { kind: 'guess', name: 'a laptop' },
-            no: { kind: 'guess', name: 'a remote control' },
-          },
-        },
-      },
-      no: {
-        kind: 'question',
-        text: 'Is it food or drink?',
-        yes: {
-          kind: 'question',
-          text: 'Is it a drink?',
-          yes: {
-            kind: 'question',
-            text: 'Is it coffee?',
-            yes: { kind: 'guess', name: 'coffee' },
-            no: { kind: 'guess', name: 'water' },
-          },
-          no: {
-            kind: 'question',
-            text: 'Is it sweet?',
-            yes: { kind: 'guess', name: 'a cookie' },
-            no: { kind: 'guess', name: 'a sandwich' },
-          },
-        },
-        no: {
-          kind: 'question',
-          text: 'Is it used for writing?',
-          yes: { kind: 'guess', name: 'a pen' },
-          no: {
-            kind: 'question',
-            text: 'Is it made of paper?',
-            yes: { kind: 'guess', name: 'a book' },
-            no: {
-              kind: 'question',
-              text: 'Do you wear it?',
-              yes: {
-                kind: 'question',
-                text: 'Is it footwear?',
-                yes: { kind: 'guess', name: 'sneakers' },
-                no: { kind: 'guess', name: 'a hat' },
-              },
-              no: {
-                kind: 'question',
-                text: 'Is it a key?',
-                yes: { kind: 'guess', name: 'a key' },
-                no: { kind: 'guess', name: 'a coin' },
-              },
-            },
-          },
-        },
-      },
-    },
-    no: {
-      kind: 'question',
-      text: 'Is it a vehicle?',
-      yes: {
-        kind: 'question',
-        text: 'Does it fly?',
-        yes: { kind: 'guess', name: 'an airplane' },
-        no: {
-          kind: 'question',
-          text: 'Does it travel on water?',
-          yes: { kind: 'guess', name: 'a boat' },
-          no: {
-            kind: 'question',
-            text: 'Is it a car?',
-            yes: { kind: 'guess', name: 'a car' },
-            no: { kind: 'guess', name: 'a bicycle' },
-          },
-        },
-      },
-      no: {
-        kind: 'question',
-        text: 'Is it a building or place?',
-        yes: {
-          kind: 'question',
-          text: 'Is it a famous landmark?',
-          yes: {
-            kind: 'question',
-            text: 'Is it in France?',
-            yes: { kind: 'guess', name: 'the Eiffel Tower' },
-            no: { kind: 'guess', name: 'the Statue of Liberty' },
-          },
-          no: {
-            kind: 'question',
-            text: 'Do people live there?',
-            yes: { kind: 'guess', name: 'a house' },
-            no: { kind: 'guess', name: 'a school' },
-          },
-        },
-        no: {
-          kind: 'question',
-          text: 'Is it furniture?',
-          yes: {
-            kind: 'question',
-            text: 'Do you sit on it?',
-            yes: { kind: 'guess', name: 'a chair' },
-            no: { kind: 'guess', name: 'a table' },
-          },
-          no: {
-            kind: 'question',
-            text: 'Is it in the sky / space?',
-            yes: {
-              kind: 'question',
-              text: 'Is it the Sun?',
-              yes: { kind: 'guess', name: 'the Sun' },
-              no: { kind: 'guess', name: 'the Moon' },
-            },
-            no: {
-              kind: 'question',
-              text: 'Is it a mountain?',
-              yes: { kind: 'guess', name: 'a mountain' },
-              no: { kind: 'guess', name: 'the ocean' },
-            },
-          },
-        },
-      },
-    },
+    text: 'Is it bigger than a breadbox?',
+    yes: bigThingsTree,
+    no: handheldTree,
   },
 }
 
@@ -383,7 +396,6 @@ export function learn(
   }
 
   if (!parent || !branch) {
-    // Root was a guess (shouldn't happen with our seed) — replace root
     return replacement
   }
   parent[branch] = replacement
