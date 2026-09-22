@@ -15,11 +15,11 @@ export type GuessNode = {
 export type TreeNode = QuestionNode | GuessNode
 
 /** Bumped so seed-tune early splits replace old localStorage trees. */
-export const STORAGE_KEY = 'twentyq-tree-v6'
+export const STORAGE_KEY = 'twentyq-tree-v7'
 export const MAX_QUESTIONS = 20
 
 /** Bump this whenever the seeded question order/content changes. */
-export const SEED_VERSION = 6
+export const SEED_VERSION = 7
 export const SEED_VERSION_KEY = 'twentyq-seed-version'
 export const SESSION_KEY = 'twentyq-session'
 
@@ -83,7 +83,7 @@ export function clearSession(): void {
   }
 }
 
-/** Seed v6: ask job/occupation before famous person. */
+/** Seed v7: computer leaf +  ask job/occupation before famous person. */
 export const seedTree: TreeNode = {
   kind: 'question',
   text: "Is it a living thing?",
@@ -2150,8 +2150,18 @@ export const seedTree: TreeNode = {
           yes: { kind: 'guess', name: "a smartphone" },
           no: {
             kind: 'question',
-            text: "Laptop?",
-            yes: { kind: 'guess', name: "a laptop" },
+            text: "Is it a computer (laptop, desktop, or PC)?",
+            yes: {
+              kind: 'question',
+              text: "Laptop?",
+              yes: { kind: 'guess', name: "a laptop" },
+              no: {
+                kind: 'question',
+                text: "Desktop / PC?",
+                yes: { kind: 'guess', name: "a computer" },
+                no: { kind: 'guess', name: "a tablet" },
+              },
+            },
             no: {
               kind: 'question',
               text: "Headphones?",
