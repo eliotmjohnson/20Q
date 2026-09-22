@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   MAX_QUESTIONS,
   type TreeNode,
@@ -9,6 +9,12 @@ import {
   saveSession,
   saveTree,
 } from './tree'
+import {
+  askModelFallback,
+  isModelEnabled,
+  type Answer,
+  type QaTurn,
+} from './modelFallback'
 import './App.css'
 
 type Phase =
@@ -21,8 +27,10 @@ type Phase =
   | 'learn-side'
   | 'give-up'
   | 'learned'
+  | 'model-loading'
 
-type Answer = 'yes' | 'no' | 'maybe'
+/** Soft cap on model round-trips per game (Q or guess each counts). */
+const MAX_MODEL_ATTEMPTS = 3
 
 function nodeAt(tree: TreeNode, path: Array<'yes' | 'no'>): TreeNode {
   let n = tree
@@ -33,14 +41,18 @@ function nodeAt(tree: TreeNode, path: Array<'yes' | 'no'>): TreeNode {
   return n
 }
 
+function restorePhase(raw: string | undefined): Phase {
+  if (!raw) return 'start'
+  // Mid-call refresh → fail-open rather than a blank screen
+  if (raw === 'model-loading') return 'give-up'
+  return raw as Phase
+}
+
 export default function App() {
   const [tree, setTree] = useState<TreeNode>(() => loadTree())
   const [path, setPath] = useState<Array<'yes' | 'no'>>(() => loadSession()?.path ?? [])
   const [count, setCount] = useState(() => loadSession()?.count ?? 0)
-  const [phase, setPhase] = useState<Phase>(() => {
-    const s = loadSession()
-    return (s?.phase as Phase | undefined) ?? 'start'
-  })
+  const [phase, setPhase] = useState<Phase>(() => restorePhase(loadSession()?.phase))
   const [correctName, setCorrectName] = useState(() => loadSession()?.correctName ?? '')
   const [distQ, setDistQ] = useState(() => loadSession()?.distQ ?? '')
   const [lastGuess, setLastGuess] = useState(() => loadSession()?.lastGuess ?? '')
@@ -50,6 +62,11 @@ export default function App() {
     return s ? nodeAt(t, s.path) : t
   })
 
+  const [qaHistory, setQaHistory] = useState<QaTurn[]>([])
+  const [inModelMode, setInModelMode] = useState(false)
+  const [modelAttempts, setModelAttempts] = useState(0)
+  const [modelQuestion, setModelQuestion] = useState('')
+
   const remaining = MAX_QUESTIONS - count
 
   // Persist mid-game so refresh resumes — but only for the current seed version.
@@ -58,6 +75,8 @@ export default function App() {
       clearSession()
       return
     }
+    // Don't persist transient loading; keep prior ask/guess if any.
+    if (phase === 'model-loading') return
     saveSession({
       seedVersion: 0, // overwritten inside saveSession
       phase,
@@ -79,6 +98,10 @@ export default function App() {
     setCorrectName('')
     setDistQ('')
     setLastGuess('')
+    setQaHistory([])
+    setInModelMode(false)
+    setModelAttempts(0)
+    setModelQuestion('')
     if (t.kind === 'guess') {
       setLastGuess(t.name)
       setPhase('guess')
@@ -105,9 +128,65 @@ export default function App() {
     setPhase('ask')
   }
 
+  const runModel = useCallback(
+    async (history: QaTurn[], questionsLeft: number, attemptsSoFar: number) => {
+      if (!isModelEnabled() || questionsLeft <= 0 || attemptsSoFar >= MAX_MODEL_ATTEMPTS) {
+        setPhase('give-up')
+        return
+      }
+
+      setInModelMode(true)
+      setPhase('model-loading')
+
+      try {
+        const resp = await askModelFallback(history, questionsLeft)
+        const nextAttempts = attemptsSoFar + 1
+        setModelAttempts(nextAttempts)
+
+        if (resp.type === 'question') {
+          setModelQuestion(resp.text)
+          setPhase('ask')
+          return
+        }
+
+        setLastGuess(resp.name)
+        setPhase('guess')
+      } catch {
+        // Fail-open: never blank the screen
+        setPhase('give-up')
+      }
+    },
+    [],
+  )
+
   const answer = (a: Answer) => {
+    // Model-sourced question (same Yes/No/Maybe UI)
+    if (inModelMode && phase === 'ask' && modelQuestion) {
+      const nextCount = count + 1
+      const nextHistory: QaTurn[] = [
+        ...qaHistory,
+        { question: modelQuestion, answer: a },
+      ]
+      setQaHistory(nextHistory)
+      setCount(nextCount)
+      setModelQuestion('')
+
+      const left = MAX_QUESTIONS - nextCount
+      if (left <= 0) {
+        setPhase('give-up')
+        return
+      }
+      void runModel(nextHistory, left, modelAttempts)
+      return
+    }
+
     if (node.kind !== 'question') return
     const nextCount = count + 1
+    const nextHistory: QaTurn[] = [
+      ...qaHistory,
+      { question: node.text, answer: a },
+    ]
+    setQaHistory(nextHistory)
 
     if (a === 'maybe') {
       // Prefer the yes branch but still burn a question
@@ -137,7 +216,30 @@ export default function App() {
       setPhase('win')
       return
     }
-    // Miss — soft give-up; teach is secondary
+
+    // Wrong leaf (tree or model). Near-miss → model if budget + enabled.
+    const left = MAX_QUESTIONS - count
+    if (
+      !inModelMode &&
+      left > 0 &&
+      isModelEnabled() &&
+      modelAttempts < MAX_MODEL_ATTEMPTS
+    ) {
+      void runModel(qaHistory, left, modelAttempts)
+      return
+    }
+
+    // Already in model mode: try another model turn if budget allows, else give up.
+    if (
+      inModelMode &&
+      left > 0 &&
+      isModelEnabled() &&
+      modelAttempts < MAX_MODEL_ATTEMPTS
+    ) {
+      void runModel(qaHistory, left, modelAttempts)
+      return
+    }
+
     setPhase('give-up')
   }
 
@@ -168,9 +270,17 @@ export default function App() {
   }
 
   const questionText = useMemo(() => {
+    if (inModelMode && modelQuestion) return modelQuestion
     if (node.kind === 'question') return node.text
     return ''
-  }, [node])
+  }, [node, inModelMode, modelQuestion])
+
+  const showAskUi = phase === 'ask'
+  const showGuessUi = phase === 'guess'
+  const counterLabel =
+    phase === 'ask' || phase === 'guess' || phase === 'model-loading'
+      ? `Q ${Math.min(count + (phase === 'guess' ? 0 : 1), MAX_QUESTIONS)} / ${MAX_QUESTIONS}`
+      : `${count} asked`
 
   return (
     <div className="app">
@@ -178,9 +288,7 @@ export default function App() {
         <div className="brand">20Q</div>
         {phase !== 'start' && (
           <div className="meta" aria-live="polite">
-            {phase === 'ask' || phase === 'guess'
-              ? `Q ${Math.min(count + (phase === 'guess' ? 0 : 1), MAX_QUESTIONS)} / ${MAX_QUESTIONS}`
-              : `${count} asked`}
+            {counterLabel}
           </div>
         )}
       </header>
@@ -205,7 +313,7 @@ export default function App() {
           </>
         )}
 
-        {phase === 'ask' && (
+        {phase === 'model-loading' && (
           <>
             <div className="progress" aria-hidden="true">
               <div
@@ -213,7 +321,23 @@ export default function App() {
                 style={{ width: `${(Math.min(count + 1, MAX_QUESTIONS) / MAX_QUESTIONS) * 100}%` }}
               />
             </div>
-            <p className="label">Question {Math.min(count + 1, MAX_QUESTIONS)} of {MAX_QUESTIONS}</p>
+            <p className="label">Still thinking</p>
+            <h1 className="prompt">Hmm, let me try another angle…</h1>
+            <p className="hint">One moment</p>
+          </>
+        )}
+
+        {showAskUi && (
+          <>
+            <div className="progress" aria-hidden="true">
+              <div
+                className="progress-bar"
+                style={{ width: `${(Math.min(count + 1, MAX_QUESTIONS) / MAX_QUESTIONS) * 100}%` }}
+              />
+            </div>
+            <p className="label">
+              {inModelMode ? 'Follow-up' : `Question ${Math.min(count + 1, MAX_QUESTIONS)} of ${MAX_QUESTIONS}`}
+            </p>
             <h1 className="prompt">{questionText}</h1>
             <p className="hint">{remaining} left after this</p>
             <div className="actions">
@@ -230,9 +354,9 @@ export default function App() {
           </>
         )}
 
-        {phase === 'guess' && (
+        {showGuessUi && (
           <>
-            <p className="label">My guess</p>
+            <p className="label">{inModelMode ? 'Another guess' : 'My guess'}</p>
             <h1 className="prompt">Are you thinking of {lastGuess}?</h1>
             <div className="actions">
               <button type="button" className="btn yes" onClick={() => confirmGuess(true)}>
