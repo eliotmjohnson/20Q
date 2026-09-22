@@ -43,8 +43,9 @@ function nodeAt(tree: TreeNode, path: Array<'yes' | 'no'>): TreeNode {
 
 function restorePhase(raw: string | undefined): Phase {
   if (!raw) return 'start'
-  // Mid-call refresh → fail-open rather than a blank screen
-  if (raw === 'model-loading') return 'give-up'
+  // model-loading is transient and must not become give-up on refresh.
+  // Resume on the prior guess so "No" can re-enter the mock model.
+  if (raw === 'model-loading') return 'guess'
   return raw as Phase
 }
 
@@ -62,10 +63,12 @@ export default function App() {
     return s ? nodeAt(t, s.path) : t
   })
 
-  const [qaHistory, setQaHistory] = useState<QaTurn[]>([])
-  const [inModelMode, setInModelMode] = useState(false)
-  const [modelAttempts, setModelAttempts] = useState(0)
-  const [modelQuestion, setModelQuestion] = useState('')
+  const [qaHistory, setQaHistory] = useState<QaTurn[]>(
+    () => (loadSession()?.qaHistory as QaTurn[] | undefined) ?? [],
+  )
+  const [inModelMode, setInModelMode] = useState(() => loadSession()?.inModelMode ?? false)
+  const [modelAttempts, setModelAttempts] = useState(() => loadSession()?.modelAttempts ?? 0)
+  const [modelQuestion, setModelQuestion] = useState(() => loadSession()?.modelQuestion ?? '')
 
   const remaining = MAX_QUESTIONS - count
 
@@ -75,7 +78,7 @@ export default function App() {
       clearSession()
       return
     }
-    // Don't persist transient loading; keep prior ask/guess if any.
+    // Don't persist transient loading; keep prior ask/guess + hybrid fields.
     if (phase === 'model-loading') return
     saveSession({
       seedVersion: 0, // overwritten inside saveSession
@@ -85,8 +88,12 @@ export default function App() {
       correctName,
       distQ,
       lastGuess,
+      qaHistory,
+      inModelMode,
+      modelAttempts,
+      modelQuestion,
     })
-  }, [phase, path, count, correctName, distQ, lastGuess])
+  }, [phase, path, count, correctName, distQ, lastGuess, qaHistory, inModelMode, modelAttempts, modelQuestion])
 
   const start = () => {
     clearSession()
@@ -213,33 +220,19 @@ export default function App() {
 
   const confirmGuess = (yes: boolean) => {
     if (yes) {
+      // Tree-only win path (commons / computer / any correct leaf) — no model.
       setPhase('win')
       return
     }
 
-    // Wrong leaf (tree or model). Near-miss → model if budget + enabled.
+    // Wrong leaf (tree or model). Near-miss → mock model while budget remains.
     const left = MAX_QUESTIONS - count
-    if (
-      !inModelMode &&
-      left > 0 &&
-      isModelEnabled() &&
-      modelAttempts < MAX_MODEL_ATTEMPTS
-    ) {
+    if (left > 0 && isModelEnabled() && modelAttempts < MAX_MODEL_ATTEMPTS) {
       void runModel(qaHistory, left, modelAttempts)
       return
     }
 
-    // Already in model mode: try another model turn if budget allows, else give up.
-    if (
-      inModelMode &&
-      left > 0 &&
-      isModelEnabled() &&
-      modelAttempts < MAX_MODEL_ATTEMPTS
-    ) {
-      void runModel(qaHistory, left, modelAttempts)
-      return
-    }
-
+    // Model exhausted / disabled / no questions left → learn-on-miss stays here.
     setPhase('give-up')
   }
 

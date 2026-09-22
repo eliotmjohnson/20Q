@@ -31,7 +31,11 @@ export type GameSession = {
   correctName: string
   distQ: string
   lastGuess: string
-  /** Serialized node path is enough with path+tree; we keep phase/count/guess fields. */
+  /** Hybrid model fields (optional for older sessions). */
+  qaHistory?: Array<{ question: string; answer: 'yes' | 'no' | 'maybe' }>
+  inModelMode?: boolean
+  modelAttempts?: number
+  modelQuestion?: string
 }
 
 /** If the shipped seed changed, drop learned tree + mid-game session. */
