@@ -1,22 +1,9 @@
 /**
- * Hybrid model fallback.
+ * Parked Cloudflare Worker / mock hybrid fallback.
  *
- * Product rule: the commons tree owns guesses; the model only runs on a near-miss
- * (wrong leaf guess with questions still remaining).
- *
- * Wiring:
- *   VITE_MODEL_PROXY_URL  — Cloudflare Worker URL that proxies to xAI (never call
- *                           the model provider from the browser). When set, POST
- *                           { history, remaining } and expect ModelResponse JSON.
- *   VITE_USE_MODEL_MOCK=1 — force the local mock even if the proxy URL is set (QA).
- *
- * Prefer: proxy URL set → real Worker; else mock (local / Pages until key arrives).
- *
- * Fail-open demo (mock path):
- *   ?modelFail=1                 — throw after the mock delay
- *   sessionStorage key
- *     twentyq-model-fail = '1'   — same
- *   VITE_MODEL_MOCK_FAIL=1       — build-time flag
+ * Live product path uses src/webllmFallback.ts behind the "Enhance guesses"
+ * opt-in. This module stays for local QA of the old Worker proxy path
+ * (VITE_ENABLE_MODEL + VITE_MODEL_PROXY_URL) and is not imported by App.tsx.
  */
 
 export type Answer = 'yes' | 'no' | 'maybe'

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   MAX_QUESTIONS,
   type TreeNode,
@@ -9,6 +9,18 @@ import {
   saveSession,
   saveTree,
 } from './tree'
+import {
+  WEBLLM_MODEL_DOWNLOAD_MB,
+  askWebLLMFallback,
+  cancelWebLLM,
+  isEnhanceEnabled,
+  isWebGPUAvailable,
+  setEnhanceEnabled,
+  setWebLLMProgressHandler,
+  type Answer,
+  type QaTurn,
+  type WebLLMProgress,
+} from './webllmFallback'
 import './App.css'
 
 type Phase =
@@ -21,8 +33,10 @@ type Phase =
   | 'learn-side'
   | 'give-up'
   | 'learned'
+  | 'model-loading'
 
-type Answer = 'yes' | 'no' | 'maybe'
+/** Soft cap on model round-trips per game (Q or guess each counts). */
+const MAX_MODEL_ATTEMPTS = 3
 
 function nodeAt(tree: TreeNode, path: Array<'yes' | 'no'>): TreeNode {
   let n = tree
@@ -35,8 +49,8 @@ function nodeAt(tree: TreeNode, path: Array<'yes' | 'no'>): TreeNode {
 
 function restorePhase(raw: string | undefined): Phase {
   if (!raw) return 'start'
-  // Stale sessions may still have model-loading from older builds.
-  if (raw === 'model-loading') return 'guess'
+  // Mid-call refresh → fail-open rather than a blank screen
+  if (raw === 'model-loading') return 'give-up'
   const allowed: Phase[] = [
     'start',
     'ask',
@@ -65,7 +79,25 @@ export default function App() {
     return s ? nodeAt(t, s.path) : t
   })
 
+  const [qaHistory, setQaHistory] = useState<QaTurn[]>(
+    () => loadSession()?.qaHistory ?? [],
+  )
+  const [inModelMode, setInModelMode] = useState(
+    () => loadSession()?.inModelMode ?? false,
+  )
+  const [modelAttempts, setModelAttempts] = useState(
+    () => loadSession()?.modelAttempts ?? 0,
+  )
+  const [modelQuestion, setModelQuestion] = useState(
+    () => loadSession()?.modelQuestion ?? '',
+  )
+
+  const [enhanceOn, setEnhanceOn] = useState(() => isEnhanceEnabled())
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [modelProgress, setModelProgress] = useState<WebLLMProgress | null>(null)
+
   const remaining = MAX_QUESTIONS - count
+  const webgpuOk = useMemo(() => isWebGPUAvailable(), [])
 
   // Persist mid-game so refresh resumes — but only for the current seed version.
   useEffect(() => {
@@ -73,6 +105,8 @@ export default function App() {
       clearSession()
       return
     }
+    // Don't persist transient loading; keep prior ask/guess if any.
+    if (phase === 'model-loading') return
     saveSession({
       seedVersion: 0, // overwritten inside saveSession
       phase,
@@ -81,11 +115,37 @@ export default function App() {
       correctName,
       distQ,
       lastGuess,
+      qaHistory,
+      inModelMode,
+      modelAttempts,
+      modelQuestion,
     })
-  }, [phase, path, count, correctName, distQ, lastGuess])
+  }, [
+    phase,
+    path,
+    count,
+    correctName,
+    distQ,
+    lastGuess,
+    qaHistory,
+    inModelMode,
+    modelAttempts,
+    modelQuestion,
+  ])
+
+  useEffect(() => {
+    setWebLLMProgressHandler((p) => setModelProgress(p))
+    return () => setWebLLMProgressHandler(null)
+  }, [])
+
+  const toggleEnhance = (on: boolean) => {
+    setEnhanceEnabled(on)
+    setEnhanceOn(on)
+  }
 
   const start = () => {
     clearSession()
+    cancelWebLLM()
     const t = loadTree()
     setTree(t)
     setNode(t)
@@ -94,6 +154,12 @@ export default function App() {
     setCorrectName('')
     setDistQ('')
     setLastGuess('')
+    setQaHistory([])
+    setInModelMode(false)
+    setModelAttempts(0)
+    setModelQuestion('')
+    setModelProgress(null)
+    setSettingsOpen(false)
     if (t.kind === 'guess') {
       setLastGuess(t.name)
       setPhase('guess')
@@ -120,9 +186,87 @@ export default function App() {
     setPhase('ask')
   }
 
+  const runModel = useCallback(
+    async (
+      history: QaTurn[],
+      questionsLeft: number,
+      attemptsSoFar: number,
+      wrongGuess?: string,
+    ) => {
+      if (
+        !isEnhanceEnabled() ||
+        questionsLeft <= 0 ||
+        attemptsSoFar >= MAX_MODEL_ATTEMPTS
+      ) {
+        setPhase('give-up')
+        return
+      }
+
+      setInModelMode(true)
+      setPhase('model-loading')
+      setModelProgress({
+        phase: 'downloading',
+        text: 'Downloading model…',
+        progress: 0,
+      })
+
+      try {
+        const resp = await askWebLLMFallback(history, questionsLeft, wrongGuess)
+        const nextAttempts = attemptsSoFar + 1
+        setModelAttempts(nextAttempts)
+        setModelProgress(null)
+
+        if (resp.type === 'question') {
+          setModelQuestion(resp.text)
+          setPhase('ask')
+          return
+        }
+
+        setLastGuess(resp.name)
+        setPhase('guess')
+      } catch {
+        // Fail-open: never blank the screen
+        setModelProgress(null)
+        setPhase('give-up')
+      }
+    },
+    [],
+  )
+
+  const cancelModel = () => {
+    cancelWebLLM()
+    setModelProgress(null)
+    setPhase('give-up')
+  }
+
   const answer = (a: Answer) => {
+    // Model-sourced question (same Yes/No/Maybe UI)
+    if (inModelMode && phase === 'ask' && modelQuestion) {
+      const nextCount = count + 1
+      const nextHistory: QaTurn[] = [
+        ...qaHistory,
+        { question: modelQuestion, answer: a },
+      ]
+      setQaHistory(nextHistory)
+      setCount(nextCount)
+      setModelQuestion('')
+
+      const left = MAX_QUESTIONS - nextCount
+      if (left <= 0) {
+        setPhase('give-up')
+        return
+      }
+      void runModel(nextHistory, left, modelAttempts)
+      return
+    }
+
     if (node.kind !== 'question') return
     const nextCount = count + 1
+    const nextHistory: QaTurn[] = [
+      ...qaHistory,
+      { question: node.text, answer: a },
+    ]
+    setQaHistory(nextHistory)
 
     if (a === 'maybe') {
       if (nextCount >= MAX_QUESTIONS) {
@@ -150,7 +294,32 @@ export default function App() {
       setPhase('win')
       return
     }
-    // Wrong leaf → give-up / learn as last resort. No model on live.
+
+    const left = MAX_QUESTIONS - count
+    const enhance = isEnhanceEnabled()
+
+    // Wrong leaf. Near-miss → WebLLM only when opt-in enhance is ON.
+    if (
+      !inModelMode &&
+      left > 0 &&
+      enhance &&
+      modelAttempts < MAX_MODEL_ATTEMPTS
+    ) {
+      void runModel(qaHistory, left, modelAttempts, lastGuess)
+      return
+    }
+
+    // Already in model mode: try another model turn if budget allows, else give up.
+    if (
+      inModelMode &&
+      left > 0 &&
+      enhance &&
+      modelAttempts < MAX_MODEL_ATTEMPTS
+    ) {
+      void runModel(qaHistory, left, modelAttempts, lastGuess)
+      return
+    }
+
     setPhase('give-up')
   }
 
@@ -179,26 +348,50 @@ export default function App() {
   }
 
   const questionText = useMemo(() => {
+    if (inModelMode && modelQuestion) return modelQuestion
     if (node.kind === 'question') return node.text
     return ''
-  }, [node])
+  }, [node, inModelMode, modelQuestion])
 
   const showAskUi = phase === 'ask'
   const showGuessUi = phase === 'guess'
   const counterLabel =
-    phase === 'ask' || phase === 'guess'
+    phase === 'ask' || phase === 'guess' || phase === 'model-loading'
       ? `Q ${Math.min(count + (phase === 'guess' ? 0 : 1), MAX_QUESTIONS)} / ${MAX_QUESTIONS}`
       : `${count} asked`
+
+  const loadingTitle =
+    modelProgress?.phase === 'downloading'
+      ? 'Downloading model…'
+      : 'Still thinking'
+  const loadingHint =
+    modelProgress?.text ||
+    (modelProgress?.phase === 'downloading'
+      ? `About ${WEBLLM_MODEL_DOWNLOAD_MB} MB · one-time download`
+      : 'One moment')
 
   return (
     <div className="app">
       <header className="top">
         <div className="brand">20Q</div>
-        {phase !== 'start' && (
-          <div className="meta" aria-live="polite">
-            {counterLabel}
-          </div>
-        )}
+        <div className="top-right">
+          {phase !== 'start' && (
+            <div className="meta" aria-live="polite">
+              {counterLabel}
+            </div>
+          )}
+          {phase === 'start' && (
+            <button
+              type="button"
+              className="gear"
+              aria-label="Settings"
+              aria-expanded={settingsOpen}
+              onClick={() => setSettingsOpen((v) => !v)}
+            >
+              ⚙
+            </button>
+          )}
+        </div>
       </header>
 
       <main className="stage">
@@ -207,8 +400,8 @@ export default function App() {
             <p className="eyebrow">20 Questions</p>
             <h1>Think of anything.</h1>
             <p className="sub">
-              Animals, objects, people — I&apos;ll try to nail it in {MAX_QUESTIONS} yes/no questions.
-              No account. Built for your phone.
+              Animals, objects, people — I&apos;ll try to nail it in {MAX_QUESTIONS}{' '}
+              yes/no questions. No account. Built for your phone.
             </p>
             <ol className="howto">
               <li>Think of something</li>
@@ -218,6 +411,56 @@ export default function App() {
             <button type="button" className="btn primary big" onClick={start}>
               Play
             </button>
+
+            {settingsOpen && (
+              <div className="settings" role="region" aria-label="Settings">
+                <label className="toggle-row">
+                  <span className="toggle-copy">
+                    <strong>Enhance guesses</strong>
+                    <span className="toggle-sub">
+                      Experimental · downloads ~{WEBLLM_MODEL_DOWNLOAD_MB} MB
+                      in-browser model on first near-miss (desktop Chrome /
+                      Edge with WebGPU). Off by default — seed-only when off.
+                    </span>
+                    {!webgpuOk && (
+                      <span className="toggle-warn">
+                        WebGPU not detected on this browser — enhance will
+                        fail-open to give-up.
+                      </span>
+                    )}
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={enhanceOn}
+                    onChange={(e) => toggleEnhance(e.target.checked)}
+                  />
+                </label>
+              </div>
+            )}
+          </>
+        )}
+
+        {phase === 'model-loading' && (
+          <>
+            <div className="progress" aria-hidden="true">
+              <div
+                className="progress-bar"
+                style={{
+                  width: `${
+                    modelProgress?.phase === 'downloading'
+                      ? Math.max(8, (modelProgress.progress || 0) * 100)
+                      : (Math.min(count + 1, MAX_QUESTIONS) / MAX_QUESTIONS) *
+                        100
+                  }%`,
+                }}
+              />
+            </div>
+            <p className="label">{loadingTitle}</p>
+            <h1 className="prompt">Hmm, let me try another angle…</h1>
+            <p className="hint">{loadingHint}</p>
+            <button type="button" className="btn ghost" onClick={cancelModel}>
+              Cancel → give up
+            </button>
           </>
         )}
 
@@ -226,11 +469,15 @@ export default function App() {
             <div className="progress" aria-hidden="true">
               <div
                 className="progress-bar"
-                style={{ width: `${(Math.min(count + 1, MAX_QUESTIONS) / MAX_QUESTIONS) * 100}%` }}
+                style={{
+                  width: `${(Math.min(count + 1, MAX_QUESTIONS) / MAX_QUESTIONS) * 100}%`,
+                }}
               />
             </div>
             <p className="label">
-              {`Question ${Math.min(count + 1, MAX_QUESTIONS)} of ${MAX_QUESTIONS}`}
+              {inModelMode
+                ? 'Follow-up'
+                : `Question ${Math.min(count + 1, MAX_QUESTIONS)} of ${MAX_QUESTIONS}`}
             </p>
             <h1 className="prompt">{questionText}</h1>
             <p className="hint">{remaining} left after this</p>
@@ -241,7 +488,11 @@ export default function App() {
               <button type="button" className="btn no" onClick={() => answer('no')}>
                 No
               </button>
-              <button type="button" className="btn maybe" onClick={() => answer('maybe')}>
+              <button
+                type="button"
+                className="btn maybe"
+                onClick={() => answer('maybe')}
+              >
                 Maybe / Don&apos;t know
               </button>
             </div>
@@ -250,7 +501,7 @@ export default function App() {
 
         {showGuessUi && (
           <>
-            <p className="label">My guess</p>
+            <p className="label">{inModelMode ? 'Another guess' : 'My guess'}</p>
             <h1 className="prompt">Are you thinking of {lastGuess}?</h1>
             <div className="actions">
               <button type="button" className="btn yes" onClick={() => confirmGuess(true)}>
@@ -270,8 +521,8 @@ export default function App() {
             </p>
             <h1>Nailed it!</h1>
             <p className="sub">
-              You were thinking of <strong>{lastGuess}</strong> — got it in {count} question
-              {count === 1 ? '' : 's'}.
+              You were thinking of <strong>{lastGuess}</strong> — got it in {count}{' '}
+              question{count === 1 ? '' : 's'}.
             </p>
             <button type="button" className="btn primary big" onClick={start}>
               Play again
@@ -377,7 +628,8 @@ export default function App() {
           <>
             <h1>Thanks — noted.</h1>
             <p className="sub">
-              I&apos;ll remember <strong>{correctName.trim()}</strong> on this phone for next time.
+              I&apos;ll remember <strong>{correctName.trim()}</strong> on this phone for
+              next time.
             </p>
             <button type="button" className="btn primary big" onClick={start}>
               Play again
