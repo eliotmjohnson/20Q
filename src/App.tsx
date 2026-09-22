@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   MAX_QUESTIONS,
   type TreeNode,
@@ -51,19 +51,6 @@ export default function App() {
   })
 
   const remaining = MAX_QUESTIONS - count
-
-  const reset = useCallback(() => {
-    clearSession()
-    const t = loadTree()
-    setTree(t)
-    setNode(t)
-    setPath([])
-    setCount(0)
-    setPhase('start')
-    setCorrectName('')
-    setDistQ('')
-    setLastGuess('')
-  }, [])
 
   // Persist mid-game so refresh resumes — but only for the current seed version.
   useEffect(() => {
@@ -150,8 +137,8 @@ export default function App() {
       setPhase('win')
       return
     }
-    // Miss — learn if we have room conceptually, always offer learn
-    setPhase('learn-what')
+    // Miss — soft give-up; teach is secondary
+    setPhase('give-up')
   }
 
   const submitWhat = () => {
@@ -201,20 +188,32 @@ export default function App() {
       <main className="stage">
         {phase === 'start' && (
           <>
+            <p className="eyebrow">20 Questions</p>
             <h1>Think of anything.</h1>
             <p className="sub">
-              I&apos;ll try to guess it in {MAX_QUESTIONS} yes/no questions.
-              No account. Works on your phone.
+              Animals, objects, people — I&apos;ll try to nail it in {MAX_QUESTIONS} yes/no questions.
+              No account. Built for your phone.
             </p>
+            <ol className="howto">
+              <li>Think of something</li>
+              <li>Answer Yes, No, or Maybe</li>
+              <li>I&apos;ll take a guess</li>
+            </ol>
             <button type="button" className="btn primary big" onClick={start}>
-              I&apos;m thinking of something
+              Play
             </button>
           </>
         )}
 
         {phase === 'ask' && (
           <>
-            <p className="label">Question</p>
+            <div className="progress" aria-hidden="true">
+              <div
+                className="progress-bar"
+                style={{ width: `${(Math.min(count + 1, MAX_QUESTIONS) / MAX_QUESTIONS) * 100}%` }}
+              />
+            </div>
+            <p className="label">Question {Math.min(count + 1, MAX_QUESTIONS)} of {MAX_QUESTIONS}</p>
             <h1 className="prompt">{questionText}</h1>
             <p className="hint">{remaining} left after this</p>
             <div className="actions">
@@ -248,9 +247,10 @@ export default function App() {
 
         {phase === 'win' && (
           <>
-            <h1>Got it!</h1>
+            <p className="celebrate" aria-hidden="true">🎉</p>
+            <h1>Nailed it!</h1>
             <p className="sub">
-              {lastGuess} in {count} question{count === 1 ? '' : 's'}.
+              You were thinking of <strong>{lastGuess}</strong> — got it in {count} question{count === 1 ? '' : 's'}.
             </p>
             <button type="button" className="btn primary big" onClick={start}>
               Play again
@@ -260,20 +260,24 @@ export default function App() {
 
         {phase === 'give-up' && (
           <>
-            <h1>Out of questions</h1>
-            <p className="sub">Teach me what you were thinking so I get better.</p>
+            <h1>I give up.</h1>
+            <p className="sub">
+              {lastGuess
+                ? <>I was stuck after thinking it might be <strong>{lastGuess}</strong>.</>
+                : <>I couldn&apos;t pin it down in {MAX_QUESTIONS} questions.</>}
+            </p>
+            <button type="button" className="btn primary big" onClick={start}>
+              Play again
+            </button>
             <button
               type="button"
-              className="btn primary big"
+              className="btn ghost"
               onClick={() => {
                 setLastGuess(lastGuess || 'my last guess')
                 setPhase('learn-what')
               }}
             >
-              Teach me
-            </button>
-            <button type="button" className="btn ghost" onClick={reset}>
-              Start over
+              Teach me for next time
             </button>
           </>
         )}
@@ -336,10 +340,9 @@ export default function App() {
 
         {phase === 'learned' && (
           <>
-            <h1>Got it — I&apos;ll remember.</h1>
+            <h1>Thanks — noted.</h1>
             <p className="sub">
-              Next time someone thinks of {correctName.trim()}, I can ask about it.
-              Survives a refresh on this phone.
+              I&apos;ll remember <strong>{correctName.trim()}</strong> on this phone for next time.
             </p>
             <button type="button" className="btn primary big" onClick={start}>
               Play again
