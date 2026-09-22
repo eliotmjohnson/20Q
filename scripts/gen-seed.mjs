@@ -1,7 +1,7 @@
 /**
  * Generate an expanded seedTree for 20Q under the existing early splits.
- * Preserves computer path:
- *   not living → not breadbox → not food/drink → electronic → not phone
+ * Preserves computer path (Electronic before breadbox so desktop PCs work):
+ *   not living → electronic → not phone
  *   → computer (laptop/desktop/PC) → not laptop → desktop → "a computer"
  */
 import fs from 'node:fs'
@@ -497,23 +497,22 @@ function buildSeed() {
     q('Furniture?', furniture, q('Large appliance?', bigAppliances, alpha(['a statue', 'a fountain', 'a billboard', 'a satellite dish', 'a solar panel', 'a wind turbine', 'a generator', 'a vending machine', 'an ATM', 'a traffic light', 'a streetlight', 'a fire hydrant']))),
   )
 
-  // Fix vehicles q — need both branches
-  const bigNonLiving = q(
-    'Is it bigger than a breadbox?',
-    q(
-      'Vehicle?',
-      q('Does it fly?', flyingVeh, q('Does it go on water?', waterVeh, landVeh)),
-      buildings,
-    ),
-    null, // filled below
-  )
-
-  // Food / drink / electronics / small
+  // Food / drink / small non-electronic (after Electronic? = No)
   const drinks = alpha(DRINKS)
   const fruits = alpha(FRUITS)
   const veggies = alpha(VEGGIES)
   const takeout = alpha(TAKEOUT)
   const otherFood = alpha(OTHER_FOOD)
+
+  const smallNonElectronic = q(
+    'Writing or school supply?',
+    alpha(SCHOOL),
+    q(
+      'Clothing you wear?',
+      alpha(CLOTHING),
+      alpha(SMALL_OBJECTS),
+    ),
+  )
 
   const foodDrink = q(
     'Food or drink?',
@@ -530,10 +529,21 @@ function buildSeed() {
         ),
       ),
     ),
-    null, // electronics+
+    smallNonElectronic,
   )
 
-  // COMPUTER PATH — keep exact question wording for QA
+  const bigNonLiving = q(
+    'Is it bigger than a breadbox?',
+    q(
+      'Vehicle?',
+      q('Does it fly?', flyingVeh, q('Does it go on water?', waterVeh, landVeh)),
+      buildings,
+    ),
+    foodDrink,
+  )
+
+  // COMPUTER PATH — Electronic before size so desktop PCs are reachable.
+  // Keep exact question wording for QA.
   const computerBranch = q(
     'Is it a computer (laptop, desktop, or PC)?',
     q(
@@ -551,21 +561,10 @@ function buildSeed() {
   const electronics = q(
     'Electronic?',
     q('Phone / smartphone?', g('a smartphone'), computerBranch),
-    q(
-      'Writing or school supply?',
-      alpha(SCHOOL),
-      q(
-        'Clothing you wear?',
-        alpha(CLOTHING),
-        alpha(SMALL_OBJECTS),
-      ),
-    ),
+    bigNonLiving,
   )
 
-  foodDrink.no = electronics
-  bigNonLiving.no = foodDrink
-
-  return q("Is it a living thing?", living, bigNonLiving)
+  return q("Is it a living thing?", living, electronics)
 }
 
 function emitNode(node, indent) {
@@ -606,19 +605,42 @@ function findPath(n, target, path = []) {
 const seed = buildSeed()
 const leaves = countLeaves(seed)
 const depth = maxDepth(seed)
-const computerPath = findPath(seed, 'a computer')
+const targets = ['a computer', 'a smartphone', 'a laptop', 'a tablet']
+const paths = Object.fromEntries(targets.map((t) => [t, findPath(seed, t)]))
 
-if (!computerPath) {
-  console.error('FATAL: computer leaf missing')
-  process.exit(1)
+for (const t of targets) {
+  if (!paths[t]) {
+    console.error('FATAL: missing leaf', t)
+    process.exit(1)
+  }
+  if (paths[t].length > 20) {
+    console.error('FATAL:', t, 'depth', paths[t].length, '> 20')
+    process.exit(1)
+  }
 }
 if (depth > 20) {
   console.error('FATAL: max depth', depth, '> 20')
   process.exit(1)
 }
 
+// Electronic must precede breadbox on the computer path
+const computerPath = paths['a computer']
+const eIdx = computerPath.findIndex((s) => s.includes('Electronic?'))
+const bIdx = computerPath.findIndex((s) => s.includes('breadbox'))
+if (eIdx < 0) {
+  console.error('FATAL: Electronic? missing on computer path')
+  process.exit(1)
+}
+if (bIdx >= 0 && bIdx < eIdx) {
+  console.error('FATAL: breadbox still before Electronic on computer path')
+  process.exit(1)
+}
+
 console.log({ leaves, maxDepth: depth, computerDepth: computerPath.length })
-console.log(computerPath.join('\n'))
+for (const t of targets) {
+  console.log('\n' + t + ' (' + paths[t].length + 'q):')
+  console.log(paths[t].join('\n'))
+}
 
 const preamble = `/** Binary decision tree: questions branch; leaves are guesses. */
 
@@ -637,11 +659,11 @@ export type GuessNode = {
 export type TreeNode = QuestionNode | GuessNode
 
 /** Bumped so seed-tune early splits replace old localStorage trees. */
-export const STORAGE_KEY = 'twentyq-tree-v8'
+export const STORAGE_KEY = 'twentyq-tree-v9'
 export const MAX_QUESTIONS = 20
 
 /** Bump this whenever the seeded question order/content changes. */
-export const SEED_VERSION = 8
+export const SEED_VERSION = 9
 export const SEED_VERSION_KEY = 'twentyq-seed-version'
 export const SESSION_KEY = 'twentyq-session'
 
@@ -709,7 +731,7 @@ export function clearSession(): void {
   }
 }
 
-/** Seed v8: expanded commons; live path has no model fallback. */
+/** Seed v9: Electronic before breadbox under non-living; live path has no model fallback. */
 export const seedTree: TreeNode = `
 
 const epilogue = `
