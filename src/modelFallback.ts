@@ -51,8 +51,15 @@ const PROXY_TIMEOUT_MS = 12_000
 const DISTINGUISHING_Q =
   'Is it something uncommon, niche, or hard to categorize with a simple yes/no?'
 
+/**
+ * Live product path does not call the model (App.tsx gives up on wrong leaf).
+ * Parked for a future opt-in: only true when VITE_ENABLE_MODEL=1 is set at build.
+ */
 export function isModelEnabled(): boolean {
-  return USE_MOCK || Boolean(PROXY_URL)
+  const optedIn =
+    typeof import.meta !== 'undefined' &&
+    import.meta.env?.VITE_ENABLE_MODEL === '1'
+  return optedIn && (USE_MOCK || Boolean(PROXY_URL))
 }
 
 function delay(ms: number): Promise<void> {

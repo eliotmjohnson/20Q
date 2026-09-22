@@ -1,19 +1,12 @@
 # 20 Questions
 
-PWA 20Q game (commons decision tree + hybrid model near-miss fallback).
+PWA 20Q game — commons decision tree, offline, no account.
 
 Live: https://eliotmjohnson.github.io/20Q/
 
-## Hybrid model proxy
+## Play
 
-Near-miss fallback can call a Cloudflare Worker that proxies to xAI (Grok).
-The API key never ships in the client.
-
-- Scaffold + docs: [`worker/README.md`](worker/README.md)
-- Client switch: set `VITE_MODEL_PROXY_URL` at build time → real Worker; unset → local mock (current Pages default until the key arrives)
-- Force mock for QA: `VITE_USE_MODEL_MOCK=1`
-
-Do **not** deploy the Worker or put secrets from this repo until an xAI key + `wrangler login` are available.
+Think of anything (animal, object, person). Answer Yes / No / Maybe. The seed tree guesses within 20 questions. Wrong leaf → give up, with optional teach-for-next-time on this device.
 
 ## App scripts
 
@@ -27,3 +20,9 @@ npm run preview
 ## Stack
 
 React + TypeScript + Vite + vite-plugin-pwa. Oxlint for lint.
+
+## Hybrid model (parked)
+
+`src/modelFallback.ts` and `worker/` stay in the repo but are **not** on the live product path. `App.tsx` never calls the model; wrong leaf fails open to give-up / learn.
+
+To opt in later: set `VITE_ENABLE_MODEL=1` and `VITE_MODEL_PROXY_URL` at build, then re-wire `App.tsx`. See [`worker/README.md`](worker/README.md). Do not deploy the Worker or ship secrets until an xAI key + `wrangler login` are available.

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   MAX_QUESTIONS,
   type TreeNode,
@@ -9,12 +9,6 @@ import {
   saveSession,
   saveTree,
 } from './tree'
-import {
-  askModelFallback,
-  isModelEnabled,
-  type Answer,
-  type QaTurn,
-} from './modelFallback'
 import './App.css'
 
 type Phase =
@@ -27,10 +21,8 @@ type Phase =
   | 'learn-side'
   | 'give-up'
   | 'learned'
-  | 'model-loading'
 
-/** Soft cap on model round-trips per game (Q or guess each counts). */
-const MAX_MODEL_ATTEMPTS = 3
+type Answer = 'yes' | 'no' | 'maybe'
 
 function nodeAt(tree: TreeNode, path: Array<'yes' | 'no'>): TreeNode {
   let n = tree
@@ -43,10 +35,20 @@ function nodeAt(tree: TreeNode, path: Array<'yes' | 'no'>): TreeNode {
 
 function restorePhase(raw: string | undefined): Phase {
   if (!raw) return 'start'
-  // model-loading is transient and must not become give-up on refresh.
-  // Resume on the prior guess so "No" can re-enter the mock model.
+  // Stale sessions may still have model-loading from older builds.
   if (raw === 'model-loading') return 'guess'
-  return raw as Phase
+  const allowed: Phase[] = [
+    'start',
+    'ask',
+    'guess',
+    'win',
+    'learn-what',
+    'learn-question',
+    'learn-side',
+    'give-up',
+    'learned',
+  ]
+  return (allowed as string[]).includes(raw) ? (raw as Phase) : 'start'
 }
 
 export default function App() {
@@ -63,13 +65,6 @@ export default function App() {
     return s ? nodeAt(t, s.path) : t
   })
 
-  const [qaHistory, setQaHistory] = useState<QaTurn[]>(
-    () => (loadSession()?.qaHistory as QaTurn[] | undefined) ?? [],
-  )
-  const [inModelMode, setInModelMode] = useState(() => loadSession()?.inModelMode ?? false)
-  const [modelAttempts, setModelAttempts] = useState(() => loadSession()?.modelAttempts ?? 0)
-  const [modelQuestion, setModelQuestion] = useState(() => loadSession()?.modelQuestion ?? '')
-
   const remaining = MAX_QUESTIONS - count
 
   // Persist mid-game so refresh resumes — but only for the current seed version.
@@ -78,8 +73,6 @@ export default function App() {
       clearSession()
       return
     }
-    // Don't persist transient loading; keep prior ask/guess + hybrid fields.
-    if (phase === 'model-loading') return
     saveSession({
       seedVersion: 0, // overwritten inside saveSession
       phase,
@@ -88,12 +81,8 @@ export default function App() {
       correctName,
       distQ,
       lastGuess,
-      qaHistory,
-      inModelMode,
-      modelAttempts,
-      modelQuestion,
     })
-  }, [phase, path, count, correctName, distQ, lastGuess, qaHistory, inModelMode, modelAttempts, modelQuestion])
+  }, [phase, path, count, correctName, distQ, lastGuess])
 
   const start = () => {
     clearSession()
@@ -105,10 +94,6 @@ export default function App() {
     setCorrectName('')
     setDistQ('')
     setLastGuess('')
-    setQaHistory([])
-    setInModelMode(false)
-    setModelAttempts(0)
-    setModelQuestion('')
     if (t.kind === 'guess') {
       setLastGuess(t.name)
       setPhase('guess')
@@ -135,74 +120,16 @@ export default function App() {
     setPhase('ask')
   }
 
-  const runModel = useCallback(
-    async (history: QaTurn[], questionsLeft: number, attemptsSoFar: number) => {
-      if (!isModelEnabled() || questionsLeft <= 0 || attemptsSoFar >= MAX_MODEL_ATTEMPTS) {
-        setPhase('give-up')
-        return
-      }
-
-      setInModelMode(true)
-      setPhase('model-loading')
-
-      try {
-        const resp = await askModelFallback(history, questionsLeft)
-        const nextAttempts = attemptsSoFar + 1
-        setModelAttempts(nextAttempts)
-
-        if (resp.type === 'question') {
-          setModelQuestion(resp.text)
-          setPhase('ask')
-          return
-        }
-
-        setLastGuess(resp.name)
-        setPhase('guess')
-      } catch {
-        // Fail-open: never blank the screen
-        setPhase('give-up')
-      }
-    },
-    [],
-  )
-
   const answer = (a: Answer) => {
-    // Model-sourced question (same Yes/No/Maybe UI)
-    if (inModelMode && phase === 'ask' && modelQuestion) {
-      const nextCount = count + 1
-      const nextHistory: QaTurn[] = [
-        ...qaHistory,
-        { question: modelQuestion, answer: a },
-      ]
-      setQaHistory(nextHistory)
-      setCount(nextCount)
-      setModelQuestion('')
-
-      const left = MAX_QUESTIONS - nextCount
-      if (left <= 0) {
-        setPhase('give-up')
-        return
-      }
-      void runModel(nextHistory, left, modelAttempts)
-      return
-    }
-
     if (node.kind !== 'question') return
     const nextCount = count + 1
-    const nextHistory: QaTurn[] = [
-      ...qaHistory,
-      { question: node.text, answer: a },
-    ]
-    setQaHistory(nextHistory)
 
     if (a === 'maybe') {
-      // Prefer the yes branch but still burn a question
       if (nextCount >= MAX_QUESTIONS) {
         setCount(nextCount)
         setPhase('give-up')
         return
       }
-      // Soft lean: treat as yes for navigation
       goTo(node.yes, 'yes', nextCount)
       return
     }
@@ -220,31 +147,20 @@ export default function App() {
 
   const confirmGuess = (yes: boolean) => {
     if (yes) {
-      // Tree-only win path (commons / computer / any correct leaf) — no model.
       setPhase('win')
       return
     }
-
-    // Wrong leaf (tree or model). Near-miss → mock model while budget remains.
-    const left = MAX_QUESTIONS - count
-    if (left > 0 && isModelEnabled() && modelAttempts < MAX_MODEL_ATTEMPTS) {
-      void runModel(qaHistory, left, modelAttempts)
-      return
-    }
-
-    // Model exhausted / disabled / no questions left → learn-on-miss stays here.
+    // Wrong leaf → give-up / learn as last resort. No model on live.
     setPhase('give-up')
   }
 
   const submitWhat = () => {
-    const name = correctName.trim()
-    if (!name) return
+    if (!correctName.trim()) return
     setPhase('learn-question')
   }
 
   const submitQuestion = () => {
-    const q = distQ.trim()
-    if (!q) return
+    if (!distQ.trim()) return
     setPhase('learn-side')
   }
 
@@ -263,15 +179,14 @@ export default function App() {
   }
 
   const questionText = useMemo(() => {
-    if (inModelMode && modelQuestion) return modelQuestion
     if (node.kind === 'question') return node.text
     return ''
-  }, [node, inModelMode, modelQuestion])
+  }, [node])
 
   const showAskUi = phase === 'ask'
   const showGuessUi = phase === 'guess'
   const counterLabel =
-    phase === 'ask' || phase === 'guess' || phase === 'model-loading'
+    phase === 'ask' || phase === 'guess'
       ? `Q ${Math.min(count + (phase === 'guess' ? 0 : 1), MAX_QUESTIONS)} / ${MAX_QUESTIONS}`
       : `${count} asked`
 
@@ -306,20 +221,6 @@ export default function App() {
           </>
         )}
 
-        {phase === 'model-loading' && (
-          <>
-            <div className="progress" aria-hidden="true">
-              <div
-                className="progress-bar"
-                style={{ width: `${(Math.min(count + 1, MAX_QUESTIONS) / MAX_QUESTIONS) * 100}%` }}
-              />
-            </div>
-            <p className="label">Still thinking</p>
-            <h1 className="prompt">Hmm, let me try another angle…</h1>
-            <p className="hint">One moment</p>
-          </>
-        )}
-
         {showAskUi && (
           <>
             <div className="progress" aria-hidden="true">
@@ -329,7 +230,7 @@ export default function App() {
               />
             </div>
             <p className="label">
-              {inModelMode ? 'Follow-up' : `Question ${Math.min(count + 1, MAX_QUESTIONS)} of ${MAX_QUESTIONS}`}
+              {`Question ${Math.min(count + 1, MAX_QUESTIONS)} of ${MAX_QUESTIONS}`}
             </p>
             <h1 className="prompt">{questionText}</h1>
             <p className="hint">{remaining} left after this</p>
@@ -349,7 +250,7 @@ export default function App() {
 
         {showGuessUi && (
           <>
-            <p className="label">{inModelMode ? 'Another guess' : 'My guess'}</p>
+            <p className="label">My guess</p>
             <h1 className="prompt">Are you thinking of {lastGuess}?</h1>
             <div className="actions">
               <button type="button" className="btn yes" onClick={() => confirmGuess(true)}>
@@ -364,10 +265,13 @@ export default function App() {
 
         {phase === 'win' && (
           <>
-            <p className="celebrate" aria-hidden="true">🎉</p>
+            <p className="celebrate" aria-hidden="true">
+              🎉
+            </p>
             <h1>Nailed it!</h1>
             <p className="sub">
-              You were thinking of <strong>{lastGuess}</strong> — got it in {count} question{count === 1 ? '' : 's'}.
+              You were thinking of <strong>{lastGuess}</strong> — got it in {count} question
+              {count === 1 ? '' : 's'}.
             </p>
             <button type="button" className="btn primary big" onClick={start}>
               Play again
@@ -379,9 +283,13 @@ export default function App() {
           <>
             <h1>I give up.</h1>
             <p className="sub">
-              {lastGuess
-                ? <>I was stuck after thinking it might be <strong>{lastGuess}</strong>.</>
-                : <>I couldn&apos;t pin it down in {MAX_QUESTIONS} questions.</>}
+              {lastGuess ? (
+                <>
+                  I was stuck after thinking it might be <strong>{lastGuess}</strong>.
+                </>
+              ) : (
+                <>I couldn&apos;t pin it down in {MAX_QUESTIONS} questions.</>
+              )}
             </p>
             <button type="button" className="btn primary big" onClick={start}>
               Play again
@@ -411,7 +319,12 @@ export default function App() {
               enterKeyHint="done"
               onKeyDown={(e) => e.key === 'Enter' && submitWhat()}
             />
-            <button type="button" className="btn primary big" onClick={submitWhat} disabled={!correctName.trim()}>
+            <button
+              type="button"
+              className="btn primary big"
+              onClick={submitWhat}
+              disabled={!correctName.trim()}
+            >
               Next
             </button>
           </>
@@ -432,7 +345,12 @@ export default function App() {
               enterKeyHint="done"
               onKeyDown={(e) => e.key === 'Enter' && submitQuestion()}
             />
-            <button type="button" className="btn primary big" onClick={submitQuestion} disabled={!distQ.trim()}>
+            <button
+              type="button"
+              className="btn primary big"
+              onClick={submitQuestion}
+              disabled={!distQ.trim()}
+            >
               Next
             </button>
           </>
