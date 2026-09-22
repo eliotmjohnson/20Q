@@ -15,11 +15,11 @@ export type GuessNode = {
 export type TreeNode = QuestionNode | GuessNode
 
 /** Bumped so seed-tune early splits replace old localStorage trees. */
-export const STORAGE_KEY = 'twentyq-tree-v9'
+export const STORAGE_KEY = 'twentyq-tree-v10'
 export const MAX_QUESTIONS = 20
 
 /** Bump this whenever the seeded question order/content changes. */
-export const SEED_VERSION = 9
+export const SEED_VERSION = 10
 export const SEED_VERSION_KEY = 'twentyq-seed-version'
 export const SESSION_KEY = 'twentyq-session'
 
@@ -87,7 +87,7 @@ export function clearSession(): void {
   }
 }
 
-/** Seed v9: Electronic before breadbox under non-living; live path has no model fallback. */
+/** Seed v10: Tablet before computer under electronics; Electronic before breadbox; live path has no model fallback. */
 export const seedTree: TreeNode = {
   kind: 'question',
   text: "Is it a living thing?",
@@ -3151,178 +3151,183 @@ export const seedTree: TreeNode = {
       yes: { kind: 'guess', name: "a smartphone" },
       no: {
         kind: 'question',
-        text: "Is it a computer (laptop, desktop, or PC)?",
-        yes: {
-          kind: 'question',
-          text: "Laptop?",
-          yes: { kind: 'guess', name: "a laptop" },
-          no: {
-            kind: 'question',
-            text: "Desktop / PC?",
-            yes: { kind: 'guess', name: "a computer" },
-            no: { kind: 'guess', name: "a tablet" },
-          },
-        },
+        text: "Tablet?",
+        yes: { kind: 'guess', name: "a tablet" },
         no: {
           kind: 'question',
-          text: "Headphones or earbuds?",
+          text: "Is it a computer (laptop, desktop, or PC)?",
           yes: {
             kind: 'question',
-            text: "Headphones (over-ear)?",
-            yes: { kind: 'guess', name: "headphones" },
-            no: { kind: 'guess', name: "earbuds" },
+            text: "Laptop?",
+            yes: { kind: 'guess', name: "a laptop" },
+            no: {
+              kind: 'question',
+              text: "Desktop / PC?",
+              yes: { kind: 'guess', name: "a computer" },
+              no: { kind: 'guess', name: "a computer" },
+            },
           },
           no: {
             kind: 'question',
-            text: "Does its name come before \"a PlayStation\" alphabetically?",
+            text: "Headphones or earbuds?",
             yes: {
               kind: 'question',
-              text: "Does its name come before \"a gaming console\" alphabetically?",
-              yes: {
-                kind: 'question',
-                text: "Does its name come before \"a computer mouse\" alphabetically?",
-                yes: {
-                  kind: 'question',
-                  text: "Does its name come before \"a camera\" alphabetically?",
-                  yes: {
-                    kind: 'question',
-                    text: "Is it a battery?",
-                    yes: { kind: 'guess', name: "a battery" },
-                    no: { kind: 'guess', name: "a Bluetooth speaker" },
-                  },
-                  no: {
-                    kind: 'question',
-                    text: "Is it a camera?",
-                    yes: { kind: 'guess', name: "a camera" },
-                    no: { kind: 'guess', name: "a charger" },
-                  },
-                },
-                no: {
-                  kind: 'question',
-                  text: "Does its name come before \"a fitness tracker\" alphabetically?",
-                  yes: {
-                    kind: 'question',
-                    text: "Is it a computer mouse?",
-                    yes: { kind: 'guess', name: "a computer mouse" },
-                    no: { kind: 'guess', name: "a drone controller" },
-                  },
-                  no: {
-                    kind: 'question',
-                    text: "Is it a fitness tracker?",
-                    yes: { kind: 'guess', name: "a fitness tracker" },
-                    no: { kind: 'guess', name: "a game controller" },
-                  },
-                },
-              },
-              no: {
-                kind: 'question',
-                text: "Does its name come before \"a Kindle\" alphabetically?",
-                yes: {
-                  kind: 'question',
-                  text: "Does its name come before \"a hard drive\" alphabetically?",
-                  yes: {
-                    kind: 'question',
-                    text: "Is it a gaming console?",
-                    yes: { kind: 'guess', name: "a gaming console" },
-                    no: { kind: 'guess', name: "a Google Nest" },
-                  },
-                  no: {
-                    kind: 'question',
-                    text: "Is it a hard drive?",
-                    yes: { kind: 'guess', name: "a hard drive" },
-                    no: { kind: 'guess', name: "a keyboard" },
-                  },
-                },
-                no: {
-                  kind: 'question',
-                  text: "Does its name come before \"a monitor\" alphabetically?",
-                  yes: {
-                    kind: 'question',
-                    text: "Is it a Kindle?",
-                    yes: { kind: 'guess', name: "a Kindle" },
-                    no: { kind: 'guess', name: "a microphone" },
-                  },
-                  no: {
-                    kind: 'question',
-                    text: "Is it a monitor?",
-                    yes: { kind: 'guess', name: "a monitor" },
-                    no: { kind: 'guess', name: "a Nintendo Switch" },
-                  },
-                },
-              },
+              text: "Headphones (over-ear)?",
+              yes: { kind: 'guess', name: "headphones" },
+              no: { kind: 'guess', name: "earbuds" },
             },
             no: {
               kind: 'question',
-              text: "Does its name come before \"a TV\" alphabetically?",
+              text: "Does its name come before \"a PlayStation\" alphabetically?",
               yes: {
                 kind: 'question',
-                text: "Does its name come before \"a router\" alphabetically?",
+                text: "Does its name come before \"a gaming console\" alphabetically?",
                 yes: {
                   kind: 'question',
-                  text: "Does its name come before \"a printer\" alphabetically?",
+                  text: "Does its name come before \"a computer mouse\" alphabetically?",
                   yes: {
                     kind: 'question',
-                    text: "Is it a PlayStation?",
-                    yes: { kind: 'guess', name: "a PlayStation" },
-                    no: { kind: 'guess', name: "a power bank" },
+                    text: "Does its name come before \"a camera\" alphabetically?",
+                    yes: {
+                      kind: 'question',
+                      text: "Is it a battery?",
+                      yes: { kind: 'guess', name: "a battery" },
+                      no: { kind: 'guess', name: "a Bluetooth speaker" },
+                    },
+                    no: {
+                      kind: 'question',
+                      text: "Is it a camera?",
+                      yes: { kind: 'guess', name: "a camera" },
+                      no: { kind: 'guess', name: "a charger" },
+                    },
                   },
                   no: {
                     kind: 'question',
-                    text: "Is it a printer?",
-                    yes: { kind: 'guess', name: "a printer" },
-                    no: { kind: 'guess', name: "a remote control" },
+                    text: "Does its name come before \"a fitness tracker\" alphabetically?",
+                    yes: {
+                      kind: 'question',
+                      text: "Is it a computer mouse?",
+                      yes: { kind: 'guess', name: "a computer mouse" },
+                      no: { kind: 'guess', name: "a drone controller" },
+                    },
+                    no: {
+                      kind: 'question',
+                      text: "Is it a fitness tracker?",
+                      yes: { kind: 'guess', name: "a fitness tracker" },
+                      no: { kind: 'guess', name: "a game controller" },
+                    },
                   },
                 },
                 no: {
                   kind: 'question',
-                  text: "Does its name come before \"a smartwatch\" alphabetically?",
+                  text: "Does its name come before \"a Kindle\" alphabetically?",
                   yes: {
                     kind: 'question',
-                    text: "Is it a router?",
-                    yes: { kind: 'guess', name: "a router" },
-                    no: { kind: 'guess', name: "a smart home hub" },
+                    text: "Does its name come before \"a hard drive\" alphabetically?",
+                    yes: {
+                      kind: 'question',
+                      text: "Is it a gaming console?",
+                      yes: { kind: 'guess', name: "a gaming console" },
+                      no: { kind: 'guess', name: "a Google Nest" },
+                    },
+                    no: {
+                      kind: 'question',
+                      text: "Is it a hard drive?",
+                      yes: { kind: 'guess', name: "a hard drive" },
+                      no: { kind: 'guess', name: "a keyboard" },
+                    },
                   },
                   no: {
                     kind: 'question',
-                    text: "Is it a smartwatch?",
-                    yes: { kind: 'guess', name: "a smartwatch" },
-                    no: { kind: 'guess', name: "a speaker" },
+                    text: "Does its name come before \"a monitor\" alphabetically?",
+                    yes: {
+                      kind: 'question',
+                      text: "Is it a Kindle?",
+                      yes: { kind: 'guess', name: "a Kindle" },
+                      no: { kind: 'guess', name: "a microphone" },
+                    },
+                    no: {
+                      kind: 'question',
+                      text: "Is it a monitor?",
+                      yes: { kind: 'guess', name: "a monitor" },
+                      no: { kind: 'guess', name: "a Nintendo Switch" },
+                    },
                   },
                 },
               },
               no: {
                 kind: 'question',
-                text: "Does its name come before \"AirPods\" alphabetically?",
+                text: "Does its name come before \"a TV\" alphabetically?",
                 yes: {
                   kind: 'question',
-                  text: "Does its name come before \"a VR headset\" alphabetically?",
+                  text: "Does its name come before \"a router\" alphabetically?",
                   yes: {
                     kind: 'question',
-                    text: "Is it a TV?",
-                    yes: { kind: 'guess', name: "a TV" },
-                    no: { kind: 'guess', name: "a USB drive" },
+                    text: "Does its name come before \"a printer\" alphabetically?",
+                    yes: {
+                      kind: 'question',
+                      text: "Is it a PlayStation?",
+                      yes: { kind: 'guess', name: "a PlayStation" },
+                      no: { kind: 'guess', name: "a power bank" },
+                    },
+                    no: {
+                      kind: 'question',
+                      text: "Is it a printer?",
+                      yes: { kind: 'guess', name: "a printer" },
+                      no: { kind: 'guess', name: "a remote control" },
+                    },
                   },
                   no: {
                     kind: 'question',
-                    text: "Is it a VR headset?",
-                    yes: { kind: 'guess', name: "a VR headset" },
-                    no: { kind: 'guess', name: "a webcam" },
+                    text: "Does its name come before \"a smartwatch\" alphabetically?",
+                    yes: {
+                      kind: 'question',
+                      text: "Is it a router?",
+                      yes: { kind: 'guess', name: "a router" },
+                      no: { kind: 'guess', name: "a smart home hub" },
+                    },
+                    no: {
+                      kind: 'question',
+                      text: "Is it a smartwatch?",
+                      yes: { kind: 'guess', name: "a smartwatch" },
+                      no: { kind: 'guess', name: "a speaker" },
+                    },
                   },
                 },
                 no: {
                   kind: 'question',
-                  text: "Does its name come before \"an e-reader\" alphabetically?",
+                  text: "Does its name come before \"AirPods\" alphabetically?",
                   yes: {
                     kind: 'question',
-                    text: "Is it AirPods?",
-                    yes: { kind: 'guess', name: "AirPods" },
-                    no: { kind: 'guess', name: "an Amazon Echo" },
+                    text: "Does its name come before \"a VR headset\" alphabetically?",
+                    yes: {
+                      kind: 'question',
+                      text: "Is it a TV?",
+                      yes: { kind: 'guess', name: "a TV" },
+                      no: { kind: 'guess', name: "a USB drive" },
+                    },
+                    no: {
+                      kind: 'question',
+                      text: "Is it a VR headset?",
+                      yes: { kind: 'guess', name: "a VR headset" },
+                      no: { kind: 'guess', name: "a webcam" },
+                    },
                   },
                   no: {
                     kind: 'question',
-                    text: "Is it an e-reader?",
-                    yes: { kind: 'guess', name: "an e-reader" },
-                    no: { kind: 'guess', name: "an Xbox" },
+                    text: "Does its name come before \"an e-reader\" alphabetically?",
+                    yes: {
+                      kind: 'question',
+                      text: "Is it AirPods?",
+                      yes: { kind: 'guess', name: "AirPods" },
+                      no: { kind: 'guess', name: "an Amazon Echo" },
+                    },
+                    no: {
+                      kind: 'question',
+                      text: "Is it an e-reader?",
+                      yes: { kind: 'guess', name: "an e-reader" },
+                      no: { kind: 'guess', name: "an Xbox" },
+                    },
                   },
                 },
               },

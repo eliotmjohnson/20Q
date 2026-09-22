@@ -1,8 +1,10 @@
 /**
  * Generate an expanded seedTree for 20Q under the existing early splits.
  * Preserves computer path (Electronic before breadbox so desktop PCs work):
- *   not living → electronic → not phone
+ *   not living → electronic → not phone → not tablet
  *   → computer (laptop/desktop/PC) → not laptop → desktop → "a computer"
+ * Tablet is asked before computer so denying laptop/desktop/PC does not
+ * dump tablets into consoles (Xbox).
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -543,13 +545,14 @@ function buildSeed() {
   )
 
   // COMPUTER PATH — Electronic before size so desktop PCs are reachable.
+  // Tablet before computer so "not laptop/desktop/PC" does not hit consoles.
   // Keep exact question wording for QA.
   const computerBranch = q(
     'Is it a computer (laptop, desktop, or PC)?',
     q(
       'Laptop?',
       g('a laptop'),
-      q('Desktop / PC?', g('a computer'), g('a tablet')),
+      q('Desktop / PC?', g('a computer'), g('a computer')),
     ),
     q(
       'Headphones or earbuds?',
@@ -560,7 +563,11 @@ function buildSeed() {
 
   const electronics = q(
     'Electronic?',
-    q('Phone / smartphone?', g('a smartphone'), computerBranch),
+    q(
+      'Phone / smartphone?',
+      g('a smartphone'),
+      q('Tablet?', g('a tablet'), computerBranch),
+    ),
     bigNonLiving,
   )
 
@@ -636,6 +643,22 @@ if (bIdx >= 0 && bIdx < eIdx) {
   process.exit(1)
 }
 
+const tabletPath = paths['a tablet']
+if (!tabletPath.some((s) => s.includes('Tablet?'))) {
+  console.error('FATAL: Tablet? missing on tablet path')
+  process.exit(1)
+}
+if (tabletPath.some((s) => s.includes('computer (laptop, desktop, or PC)'))) {
+  console.error('FATAL: tablet still under computer (laptop/desktop/PC) question')
+  process.exit(1)
+}
+const tIdx = tabletPath.findIndex((s) => s.includes('Tablet?'))
+const cOnTablet = tabletPath.findIndex((s) => s.includes('computer (laptop, desktop, or PC)'))
+if (cOnTablet >= 0 && tIdx >= 0 && cOnTablet < tIdx) {
+  console.error('FATAL: computer asked before Tablet on tablet path')
+  process.exit(1)
+}
+
 console.log({ leaves, maxDepth: depth, computerDepth: computerPath.length })
 for (const t of targets) {
   console.log('\n' + t + ' (' + paths[t].length + 'q):')
@@ -659,11 +682,11 @@ export type GuessNode = {
 export type TreeNode = QuestionNode | GuessNode
 
 /** Bumped so seed-tune early splits replace old localStorage trees. */
-export const STORAGE_KEY = 'twentyq-tree-v9'
+export const STORAGE_KEY = 'twentyq-tree-v10'
 export const MAX_QUESTIONS = 20
 
 /** Bump this whenever the seeded question order/content changes. */
-export const SEED_VERSION = 9
+export const SEED_VERSION = 10
 export const SEED_VERSION_KEY = 'twentyq-seed-version'
 export const SESSION_KEY = 'twentyq-session'
 
@@ -731,7 +754,7 @@ export function clearSession(): void {
   }
 }
 
-/** Seed v9: Electronic before breadbox under non-living; live path has no model fallback. */
+/** Seed v10: Tablet before computer under electronics; Electronic before breadbox; live path has no model fallback. */
 export const seedTree: TreeNode = `
 
 const epilogue = `
