@@ -15,11 +15,11 @@ export type GuessNode = {
 export type TreeNode = QuestionNode | GuessNode
 
 /** Bumped so seed-tune early splits replace old localStorage trees. */
-export const STORAGE_KEY = 'twentyq-tree-v5'
+export const STORAGE_KEY = 'twentyq-tree-v6'
 export const MAX_QUESTIONS = 20
 
 /** Bump this whenever the seeded question order/content changes. */
-export const SEED_VERSION = 5
+export const SEED_VERSION = 6
 export const SEED_VERSION_KEY = 'twentyq-seed-version'
 export const SESSION_KEY = 'twentyq-session'
 
@@ -83,7 +83,7 @@ export function clearSession(): void {
   }
 }
 
-/** Seed v5 (457 leaves, max depth 15): attribute vehicles/food + occupations. */
+/** Seed v6: ask job/occupation before famous person. */
 export const seedTree: TreeNode = {
   kind: 'question',
   text: "Is it a living thing?",
@@ -401,8 +401,92 @@ export const seedTree: TreeNode = {
       },
       no: {
         kind: 'question',
-        text: "Is it a famous person (celebrity, historical figure, athlete)?",
+        text: "Is it mainly a job or occupation (like teacher, doctor, firefighter)?",
         yes: {
+          kind: 'question',
+          text: "Works in a school?",
+          yes: {
+            kind: 'question',
+            text: "Teacher?",
+            yes: { kind: 'guess', name: "a teacher" },
+            no: {
+              kind: 'question',
+              text: "Principal?",
+              yes: { kind: 'guess', name: "a principal" },
+              no: { kind: 'guess', name: "a student" },
+            },
+          },
+          no: {
+            kind: 'question',
+            text: "Works in healthcare?",
+            yes: {
+              kind: 'question',
+              text: "Doctor?",
+              yes: { kind: 'guess', name: "a doctor" },
+              no: {
+                kind: 'question',
+                text: "Nurse?",
+                yes: { kind: 'guess', name: "a nurse" },
+                no: { kind: 'guess', name: "a dentist" },
+              },
+            },
+            no: {
+              kind: 'question',
+              text: "Food service or store?",
+              yes: {
+                kind: 'question',
+                text: "Chef / cook?",
+                yes: { kind: 'guess', name: "a chef" },
+                no: {
+                  kind: 'question',
+                  text: "Waiter / waitress?",
+                  yes: { kind: 'guess', name: "a waiter" },
+                  no: { kind: 'guess', name: "a cashier" },
+                },
+              },
+              no: {
+                kind: 'question',
+                text: "Public safety or military?",
+                yes: {
+                  kind: 'question',
+                  text: "Firefighter?",
+                  yes: { kind: 'guess', name: "a firefighter" },
+                  no: {
+                    kind: 'question',
+                    text: "Police officer?",
+                    yes: { kind: 'guess', name: "a police officer" },
+                    no: { kind: 'guess', name: "a soldier" },
+                  },
+                },
+                no: {
+                  kind: 'question',
+                  text: "Farmer?",
+                  yes: { kind: 'guess', name: "a farmer" },
+                  no: {
+                    kind: 'question',
+                    text: "Pilot?",
+                    yes: { kind: 'guess', name: "a pilot" },
+                    no: {
+                      kind: 'question',
+                      text: "Lawyer?",
+                      yes: { kind: 'guess', name: "a lawyer" },
+                      no: {
+                        kind: 'question',
+                        text: "Engineer?",
+                        yes: { kind: 'guess', name: "an engineer" },
+                        no: { kind: 'guess', name: "a construction worker" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        no: {
+          kind: 'question',
+          text: "Is it someone famous most people know by name (celebrity, historical figure, athlete)?",
+          yes: {
           kind: 'question',
           text: "Known for music?",
           yes: {
@@ -808,86 +892,7 @@ export const seedTree: TreeNode = {
             },
           },
         },
-        no: {
-          kind: 'question',
-          text: "Works in a school?",
-          yes: {
-            kind: 'question',
-            text: "Teacher?",
-            yes: { kind: 'guess', name: "a teacher" },
-            no: {
-              kind: 'question',
-              text: "Principal?",
-              yes: { kind: 'guess', name: "a principal" },
-              no: { kind: 'guess', name: "a student" },
-            },
-          },
-          no: {
-            kind: 'question',
-            text: "Works in healthcare?",
-            yes: {
-              kind: 'question',
-              text: "Doctor?",
-              yes: { kind: 'guess', name: "a doctor" },
-              no: {
-                kind: 'question',
-                text: "Nurse?",
-                yes: { kind: 'guess', name: "a nurse" },
-                no: { kind: 'guess', name: "a dentist" },
-              },
-            },
-            no: {
-              kind: 'question',
-              text: "Food service or store?",
-              yes: {
-                kind: 'question',
-                text: "Chef / cook?",
-                yes: { kind: 'guess', name: "a chef" },
-                no: {
-                  kind: 'question',
-                  text: "Waiter / waitress?",
-                  yes: { kind: 'guess', name: "a waiter" },
-                  no: { kind: 'guess', name: "a cashier" },
-                },
-              },
-              no: {
-                kind: 'question',
-                text: "Public safety / military?",
-                yes: {
-                  kind: 'question',
-                  text: "Firefighter?",
-                  yes: { kind: 'guess', name: "a firefighter" },
-                  no: {
-                    kind: 'question',
-                    text: "Police officer?",
-                    yes: { kind: 'guess', name: "a police officer" },
-                    no: { kind: 'guess', name: "a soldier" },
-                  },
-                },
-                no: {
-                  kind: 'question',
-                  text: "Farmer?",
-                  yes: { kind: 'guess', name: "a farmer" },
-                  no: {
-                    kind: 'question',
-                    text: "Pilot?",
-                    yes: { kind: 'guess', name: "a pilot" },
-                    no: {
-                      kind: 'question',
-                      text: "Lawyer?",
-                      yes: { kind: 'guess', name: "a lawyer" },
-                      no: {
-                        kind: 'question',
-                        text: "Engineer?",
-                        yes: { kind: 'guess', name: "an engineer" },
-                        no: { kind: 'guess', name: "a construction worker" },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
+          no: { kind: 'guess', name: "a person" },
         },
       },
     },
