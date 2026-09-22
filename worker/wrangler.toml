@@ -1,0 +1,12 @@
+# 20Q hybrid model proxy — Cloudflare Worker
+# Deploy once XAI_API_KEY is available: see README.md
+name = "20q-model-proxy"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+# Optional: override default model (grok-3-mini)
+# [vars]
+# XAI_MODEL = "grok-3-mini"
+
+# Rate limit uses the Cache API (no KV binding / namespace setup required).
+# See README.md "Rate limiting" for the rationale and upgrade path to KV.

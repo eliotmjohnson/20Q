@@ -3,3 +3,6 @@ dist
 .DS_Store
 *.local
 .vercel
+.wrangler
+.dev.vars
+worker/node_modules

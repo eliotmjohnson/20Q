@@ -1,16 +1,18 @@
 /**
- * Hybrid model fallback (stub).
+ * Hybrid model fallback.
  *
  * Product rule: the commons tree owns guesses; the model only runs on a near-miss
  * (wrong leaf guess with questions still remaining).
  *
- * Later wiring:
+ * Wiring:
  *   VITE_MODEL_PROXY_URL  — Cloudflare Worker URL that proxies to xAI (never call
- *                           the model provider from the browser). When set, this
- *                           module will POST { history, remaining } and expect a
- *                           ModelResponse JSON body. Not implemented in this spike.
+ *                           the model provider from the browser). When set, POST
+ *                           { history, remaining } and expect ModelResponse JSON.
+ *   VITE_USE_MODEL_MOCK=1 — force the local mock even if the proxy URL is set (QA).
  *
- * Fail-open demo (mock only):
+ * Prefer: proxy URL set → real Worker; else mock (local / Pages until key arrives).
+ *
+ * Fail-open demo (mock path):
  *   ?modelFail=1                 — throw after the mock delay
  *   sessionStorage key
  *     twentyq-model-fail = '1'   — same
@@ -28,7 +30,6 @@ export type ModelResponse =
   | { type: 'question'; text: string }
   | { type: 'guess'; name: string }
 
-/** Documented for the Worker + xAI step; unused in this stub. */
 export const MODEL_PROXY_ENV = 'VITE_MODEL_PROXY_URL'
 
 const PROXY_URL =
@@ -36,11 +37,16 @@ const PROXY_URL =
     (import.meta.env?.VITE_MODEL_PROXY_URL as string | undefined)?.trim()) ||
   ''
 
-/** Spike always ships a local mock; later flip USE_MOCK off when proxy is required. */
-const USE_MOCK = true
+const FORCE_MOCK =
+  typeof import.meta !== 'undefined' &&
+  import.meta.env?.VITE_USE_MODEL_MOCK === '1'
+
+/** Real proxy when URL is set and mock is not forced; otherwise local mock. */
+const USE_MOCK = FORCE_MOCK || !PROXY_URL
 
 const MOCK_DELAY_MS = 450
 const MOCK_TIMEOUT_MS = 8_000
+const PROXY_TIMEOUT_MS = 12_000
 
 const DISTINGUISHING_Q =
   'Is it something uncommon, niche, or hard to categorize with a simple yes/no?'
@@ -86,9 +92,20 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   })
 }
 
+function isModelResponse(raw: unknown): raw is ModelResponse {
+  if (!raw || typeof raw !== 'object') return false
+  const o = raw as Record<string, unknown>
+  if (o.type === 'question' && typeof o.text === 'string' && o.text.trim()) {
+    return true
+  }
+  if (o.type === 'guess' && typeof o.name === 'string' && o.name.trim()) {
+    return true
+  }
+  return false
+}
+
 /**
  * Deterministic mock: one distinguishing question (if budget allows), then a guess.
- * Real proxy path is intentionally not called yet.
  */
 async function mockAsk(
   history: QaTurn[],
@@ -120,26 +137,36 @@ async function mockAsk(
   return { type: 'guess', name: 'something else' }
 }
 
+async function proxyAsk(
+  history: QaTurn[],
+  remaining: number,
+): Promise<ModelResponse> {
+  const res = await fetch(PROXY_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ history, remaining }),
+  })
+  if (!res.ok) {
+    throw new Error(`Model proxy ${res.status}`)
+  }
+  const data: unknown = await res.json()
+  if (!isModelResponse(data)) {
+    throw new Error('Model proxy returned invalid ModelResponse')
+  }
+  return data
+}
+
 /**
- * Ask the model (mock for this spike). Always fail-open at the call site on throw.
+ * Ask the model (Worker proxy when configured, else mock).
+ * Always fail-open at the call site on throw.
  * `remaining` is questions left in the ≤20 budget (not including a pending ask).
  */
 export async function askModelFallback(
   history: QaTurn[],
   remaining: number,
 ): Promise<ModelResponse> {
-  // Spike: never hit the network even if VITE_MODEL_PROXY_URL is set.
-  // Later:
-  //   if (PROXY_URL) {
-  //     const res = await fetch(PROXY_URL, {
-  //       method: 'POST',
-  //       headers: { 'Content-Type': 'application/json' },
-  //       body: JSON.stringify({ history, remaining }),
-  //     })
-  //     if (!res.ok) throw new Error(`Model proxy ${res.status}`)
-  //     return (await res.json()) as ModelResponse
-  //   }
-  void PROXY_URL
-
+  if (!USE_MOCK && PROXY_URL) {
+    return withTimeout(proxyAsk(history, remaining), PROXY_TIMEOUT_MS)
+  }
   return withTimeout(mockAsk(history, remaining), MOCK_TIMEOUT_MS)
 }

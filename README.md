@@ -1,32 +1,29 @@
-# React + TypeScript + Vite
+# 20 Questions
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+PWA 20Q game (commons decision tree + hybrid model near-miss fallback).
 
-Currently, two official plugins are available:
+Live: https://eliotmjohnson.github.io/20Q/
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Hybrid model proxy
 
-## React Compiler
+Near-miss fallback can call a Cloudflare Worker that proxies to xAI (Grok).
+The API key never ships in the client.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Scaffold + docs: [`worker/README.md`](worker/README.md)
+- Client switch: set `VITE_MODEL_PROXY_URL` at build time → real Worker; unset → local mock (current Pages default until the key arrives)
+- Force mock for QA: `VITE_USE_MODEL_MOCK=1`
 
-## Expanding the Oxlint configuration
+Do **not** deploy the Worker or put secrets from this repo until an xAI key + `wrangler login` are available.
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+## App scripts
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev
+npm run build
+npm run preview
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Stack
+
+React + TypeScript + Vite + vite-plugin-pwa. Oxlint for lint.
