@@ -18,6 +18,71 @@ export type TreeNode = QuestionNode | GuessNode
 export const STORAGE_KEY = 'twentyq-tree-v2'
 export const MAX_QUESTIONS = 20
 
+/** Bump this whenever the seeded question order/content changes. */
+export const SEED_VERSION = 3
+export const SEED_VERSION_KEY = 'twentyq-seed-version'
+export const SESSION_KEY = 'twentyq-session'
+
+export type GameSession = {
+  seedVersion: number
+  phase: string
+  path: Array<'yes' | 'no'>
+  count: number
+  correctName: string
+  distQ: string
+  lastGuess: string
+  /** Serialized node path is enough with path+tree; we keep phase/count/guess fields. */
+}
+
+/** If the shipped seed changed, drop learned tree + mid-game session. */
+export function ensureSeedVersion(): boolean {
+  try {
+    const prev = localStorage.getItem(SEED_VERSION_KEY)
+    if (prev === String(SEED_VERSION)) return false
+    localStorage.removeItem(STORAGE_KEY)
+    sessionStorage.removeItem(SESSION_KEY)
+    localStorage.setItem(SEED_VERSION_KEY, String(SEED_VERSION))
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function loadSession(): GameSession | null {
+  try {
+    ensureSeedVersion()
+    const raw = sessionStorage.getItem(SESSION_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as GameSession
+    if (!parsed || parsed.seedVersion !== SEED_VERSION) {
+      sessionStorage.removeItem(SESSION_KEY)
+      return null
+    }
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+export function saveSession(session: GameSession): void {
+  try {
+    sessionStorage.setItem(
+      SESSION_KEY,
+      JSON.stringify({ ...session, seedVersion: SEED_VERSION }),
+    )
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+export function clearSession(): void {
+  try {
+    sessionStorage.removeItem(SESSION_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
 const personTree: TreeNode = {
   kind: 'question',
   text: 'Is it a fictional character?',
@@ -345,6 +410,7 @@ export function cloneTree(node: TreeNode): TreeNode {
 
 export function loadTree(): TreeNode {
   try {
+    ensureSeedVersion()
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return cloneTree(seedTree)
     const parsed = JSON.parse(raw) as TreeNode

@@ -1,9 +1,12 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   MAX_QUESTIONS,
   type TreeNode,
+  clearSession,
   learn,
+  loadSession,
   loadTree,
+  saveSession,
   saveTree,
 } from './tree'
 import './App.css'
@@ -21,19 +24,36 @@ type Phase =
 
 type Answer = 'yes' | 'no' | 'maybe'
 
+function nodeAt(tree: TreeNode, path: Array<'yes' | 'no'>): TreeNode {
+  let n = tree
+  for (const step of path) {
+    if (n.kind !== 'question') break
+    n = n[step]
+  }
+  return n
+}
+
 export default function App() {
   const [tree, setTree] = useState<TreeNode>(() => loadTree())
-  const [node, setNode] = useState<TreeNode>(() => loadTree())
-  const [path, setPath] = useState<Array<'yes' | 'no'>>([])
-  const [count, setCount] = useState(0)
-  const [phase, setPhase] = useState<Phase>('start')
-  const [correctName, setCorrectName] = useState('')
-  const [distQ, setDistQ] = useState('')
-  const [lastGuess, setLastGuess] = useState('')
+  const [path, setPath] = useState<Array<'yes' | 'no'>>(() => loadSession()?.path ?? [])
+  const [count, setCount] = useState(() => loadSession()?.count ?? 0)
+  const [phase, setPhase] = useState<Phase>(() => {
+    const s = loadSession()
+    return (s?.phase as Phase | undefined) ?? 'start'
+  })
+  const [correctName, setCorrectName] = useState(() => loadSession()?.correctName ?? '')
+  const [distQ, setDistQ] = useState(() => loadSession()?.distQ ?? '')
+  const [lastGuess, setLastGuess] = useState(() => loadSession()?.lastGuess ?? '')
+  const [node, setNode] = useState<TreeNode>(() => {
+    const t = loadTree()
+    const s = loadSession()
+    return s ? nodeAt(t, s.path) : t
+  })
 
   const remaining = MAX_QUESTIONS - count
 
   const reset = useCallback(() => {
+    clearSession()
     const t = loadTree()
     setTree(t)
     setNode(t)
@@ -45,7 +65,25 @@ export default function App() {
     setLastGuess('')
   }, [])
 
+  // Persist mid-game so refresh resumes — but only for the current seed version.
+  useEffect(() => {
+    if (phase === 'start') {
+      clearSession()
+      return
+    }
+    saveSession({
+      seedVersion: 0, // overwritten inside saveSession
+      phase,
+      path,
+      count,
+      correctName,
+      distQ,
+      lastGuess,
+    })
+  }, [phase, path, count, correctName, distQ, lastGuess])
+
   const start = () => {
+    clearSession()
     const t = loadTree()
     setTree(t)
     setNode(t)
