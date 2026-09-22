@@ -1,0 +1,153 @@
+.app {
+  min-height: 100dvh;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #0f172a;
+  color: #f8fafc;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem 0.5rem;
+}
+
+.brand {
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #38bdf8;
+  font-size: 1.1rem;
+}
+
+.meta {
+  font-size: 0.95rem;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+.stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem 1.5rem;
+  max-width: 28rem;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+h1 {
+  font-size: clamp(1.6rem, 6vw, 2.1rem);
+  line-height: 1.2;
+  margin: 0;
+  font-weight: 700;
+}
+
+.prompt {
+  font-size: clamp(1.5rem, 5.5vw, 2rem);
+}
+
+.sub {
+  margin: 0;
+  color: #cbd5e1;
+  font-size: 1.05rem;
+  line-height: 1.45;
+}
+
+.label {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.hint {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.btn {
+  appearance: none;
+  border: none;
+  border-radius: 1rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  padding: 1.1rem 1.25rem;
+  min-height: 3.5rem;
+  cursor: pointer;
+  color: #0f172a;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn.big {
+  margin-top: 0.5rem;
+}
+
+.btn.primary {
+  background: #38bdf8;
+}
+
+.btn.yes {
+  background: #34d399;
+}
+
+.btn.no {
+  background: #fb7185;
+}
+
+.btn.maybe {
+  background: #334155;
+  color: #e2e8f0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.btn.ghost {
+  background: transparent;
+  color: #94a3b8;
+  font-size: 1rem;
+  font-weight: 600;
+  min-height: 2.75rem;
+}
+
+.field {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 1.15rem;
+  padding: 1rem 1rem;
+  border-radius: 1rem;
+  border: 2px solid #334155;
+  background: #1e293b;
+  color: #f8fafc;
+  outline: none;
+}
+
+.field:focus {
+  border-color: #38bdf8;
+}
+
+.field::placeholder {
+  color: #64748b;
+}
