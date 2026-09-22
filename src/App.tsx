@@ -294,32 +294,8 @@ export default function App() {
       setPhase('win')
       return
     }
-
-    const left = MAX_QUESTIONS - count
-    const enhance = isEnhanceEnabled()
-
-    // Wrong leaf. Near-miss → WebLLM only when opt-in enhance is ON.
-    if (
-      !inModelMode &&
-      left > 0 &&
-      enhance &&
-      modelAttempts < MAX_MODEL_ATTEMPTS
-    ) {
-      void runModel(qaHistory, left, modelAttempts, lastGuess)
-      return
-    }
-
-    // Already in model mode: try another model turn if budget allows, else give up.
-    if (
-      inModelMode &&
-      left > 0 &&
-      enhance &&
-      modelAttempts < MAX_MODEL_ATTEMPTS
-    ) {
-      void runModel(qaHistory, left, modelAttempts, lastGuess)
-      return
-    }
-
+    // Product rule: at most one guess per round. Wrong → miss (give-up / teach).
+    // No second leaf, no Enhance follow-up after a rejected guess.
     setPhase('give-up')
   }
 
@@ -501,7 +477,7 @@ export default function App() {
 
         {showGuessUi && (
           <>
-            <p className="label">{inModelMode ? 'Another guess' : 'My guess'}</p>
+            <p className="label">'My guess'</p>
             <h1 className="prompt">Are you thinking of {lastGuess}?</h1>
             <div className="actions">
               <button type="button" className="btn yes" onClick={() => confirmGuess(true)}>
