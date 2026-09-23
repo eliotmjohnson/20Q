@@ -1,108 +1,17 @@
-import fs from 'node:fs'
+/**
+ * Audit seedTree: mid-tree questions must be attributes (no name guesses / group lists).
+ * Run: npx tsx scripts/rebuild-seed.ts
+ */
 import { seedTree, type TreeNode } from '../src/tree.ts'
 
-function isAlpha(text: string) {
-  return /come before|alphabetically/i.test(text)
-}
-
-function collectLeaves(n: TreeNode): string[] {
-  if (n.kind === 'guess') return [n.name]
-  return [...collectLeaves(n.yes), ...collectLeaves(n.no)]
-}
-
-function unique(names: string[]): string[] {
-  return [...new Set(names)]
-}
-
-function formatOr(names: string[]): string {
-  if (names.length === 1) return names[0]!
-  if (names.length === 2) return `${names[0]} or ${names[1]}`
-  return `${names.slice(0, -1).join(', ')}, or ${names[names.length - 1]}`
-}
-
-function groupQuestion(yesGroup: string[]): string {
-  if (yesGroup.length <= 4) {
-    return `Is it ${formatOr(yesGroup)}?`
-  }
-  const sample = yesGroup.slice(0, 3)
-  return `Is it ${formatOr(sample)}, or something else in that same bunch (${yesGroup.length} options)?`
-}
-
-/** Balanced rebuild — never alphabet order. Depth ~ log2(n). */
-function buildFromNames(names: string[]): TreeNode {
-  const list = unique(names)
-  if (list.length === 0) return { kind: 'guess', name: 'something else' }
-  if (list.length === 1) return { kind: 'guess', name: list[0]! }
-  if (list.length === 2) {
-    return {
-      kind: 'question',
-      text: `Is it ${list[0]}?`,
-      yes: { kind: 'guess', name: list[0]! },
-      no: { kind: 'guess', name: list[1]! },
-    }
-  }
-
-  // Prefer a meaningful split when it is reasonably balanced (30/70+)
-  const multi = list.filter((n) => n.trim().split(/\s+/).length > 1)
-  const single = list.filter((n) => n.trim().split(/\s+/).length <= 1)
-  const balanced =
-    multi.length > 0 &&
-    single.length > 0 &&
-    multi.length / list.length >= 0.3 &&
-    single.length / list.length >= 0.3
-  if (balanced) {
-    return {
-      kind: 'question',
-      text: 'Does its name have more than one word?',
-      yes: buildFromNames(multi),
-      no: buildFromNames(single),
-    }
-  }
-
-  // Stable order for deterministic trees, but question text does not say "alphabet"
-  const sorted = [...list].sort((a, b) => a.localeCompare(b))
-  const mid = Math.ceil(sorted.length / 2)
-  const left = sorted.slice(0, mid)
-  const right = sorted.slice(mid)
-  return {
-    kind: 'question',
-    text: groupQuestion(left),
-    yes: buildFromNames(left),
-    no: buildFromNames(right),
-  }
-}
-
-function transform(n: TreeNode): TreeNode {
-  if (n.kind === 'guess') return { kind: 'guess', name: n.name }
-  if (isAlpha(n.text)) {
-    return buildFromNames(collectLeaves(n))
-  }
-  return {
-    kind: 'question',
-    text: n.text,
-    yes: transform(n.yes),
-    no: transform(n.no),
-  }
-}
-
-function emit(n: TreeNode, indent: number): string {
-  const pad = ' '.repeat(indent)
+function collectLeaves(n: TreeNode, out: string[] = []): string[] {
   if (n.kind === 'guess') {
-    return `${pad}{ kind: 'guess', name: ${JSON.stringify(n.name)} }`
+    out.push(n.name)
+    return out
   }
-  return (
-    `${pad}{\n` +
-    `${pad}  kind: 'question',\n` +
-    `${pad}  text: ${JSON.stringify(n.text)},\n` +
-    `${pad}  yes: ${emit(n.yes, indent + 2).trimStart()},\n` +
-    `${pad}  no: ${emit(n.no, indent + 2).trimStart()},\n` +
-    `${pad}}`
-  )
-}
-
-function countAlpha(n: TreeNode): number {
-  if (n.kind === 'guess') return 0
-  return (isAlpha(n.text) ? 1 : 0) + countAlpha(n.yes) + countAlpha(n.no)
+  collectLeaves(n.yes, out)
+  collectLeaves(n.no, out)
+  return out
 }
 
 function countLeaves(n: TreeNode): number {
@@ -110,37 +19,57 @@ function countLeaves(n: TreeNode): number {
   return countLeaves(n.yes) + countLeaves(n.no)
 }
 
-function maxDepth(n: TreeNode): number {
-  if (n.kind === 'guess') return 0
-  return 1 + Math.max(maxDepth(n.yes), maxDepth(n.no))
+function findPath(n: TreeNode, target: string, path: string[] = []): string[] | null {
+  if (n.kind === 'guess') return n.name === target ? path : null
+  return (
+    findPath(n.yes, target, [...path, `Y:${n.text}`]) ??
+    findPath(n.no, target, [...path, `N:${n.text}`])
+  )
 }
 
-const next = transform(seedTree)
-console.log(
-  JSON.stringify({
-    beforeAlpha: countAlpha(seedTree),
-    afterAlpha: countAlpha(next),
-    leaves: countLeaves(next),
-    maxDepth: maxDepth(next),
-  }),
-)
+function audit(seed: TreeNode) {
+  const leaves = collectLeaves(seed)
+  const leafSet = new Set(leaves.map((n) => n.toLowerCase()))
+  const bare = new Set<string>()
+  for (const n of leaves) {
+    bare.add(n.toLowerCase())
+    bare.add(n.toLowerCase().replace(/^(a|an|the)\s+/, ''))
+  }
+  const bad: Array<{ text: string; reason: string }> = []
+  const walk = (node: TreeNode) => {
+    if (node.kind === 'guess') return
+    const t = node.text
+    if (/same bunch|\d+\s*options/i.test(t)) bad.push({ text: t, reason: 'group-list' })
+    if (/come before|alphabetically/i.test(t)) bad.push({ text: t, reason: 'alphabet' })
+    const m = t.match(/^Is it (.+)\?$/i)
+    if (m) {
+      const cand = m[1].toLowerCase()
+      if (leafSet.has(cand) || bare.has(cand)) bad.push({ text: t, reason: 'name-guess' })
+      if (/\bor\b/i.test(m[1])) {
+        const parts = m[1].split(/\s*,\s*|\s+or\s+/i).map((s) => s.trim().toLowerCase())
+        if (parts.filter((p) => leafSet.has(p) || bare.has(p)).length >= 2) {
+          bad.push({ text: t, reason: 'group-list-names' })
+        }
+      }
+    }
+    const stripped = t.replace(/\?$/, '').trim().toLowerCase()
+    if (leafSet.has(stripped) || bare.has(stripped)) {
+      bad.push({ text: t, reason: 'bare-name-question' })
+    }
+    walk(node.yes)
+    walk(node.no)
+  }
+  walk(seed)
+  return bad
+}
 
-const orig = fs.readFileSync('src/tree.ts', 'utf8')
-const header = orig
-  .split('export const seedTree')[0]!
-  .replace(/SEED_VERSION = \d+/, 'SEED_VERSION = 11')
-  .replace(/twentyq-tree-v\d+/g, 'twentyq-tree-v11')
-
-const afterSeed = orig.split(/^export function cloneTree/m)
-if (afterSeed.length < 2) throw new Error('cloneTree not found')
-const rest = 'export function cloneTree' + afterSeed[1]
-
-const out =
-  header +
-  '/** Seed v11: alphabet / comes-before questions removed; balanced group splits. */\n' +
-  'export const seedTree: TreeNode = ' +
-  emit(next, 0) +
-  '\n\n' +
-  rest
-fs.writeFileSync('src/tree.ts', out)
-console.log('wrote', fs.statSync('src/tree.ts').size)
+const bad = audit(seedTree)
+console.log({ leaves: countLeaves(seedTree), violations: bad.length })
+for (const t of ['a computer', 'a smartphone', 'a laptop', 'a tablet', 'a dog']) {
+  console.log(t, findPath(seedTree, t)?.join(' → '))
+}
+if (bad.length) {
+  for (const b of bad.slice(0, 30)) console.error(b.reason, b.text)
+  process.exit(1)
+}
+console.log('OK: attribute-only seed')
