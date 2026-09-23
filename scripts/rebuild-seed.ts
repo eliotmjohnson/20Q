@@ -1,5 +1,5 @@
 /**
- * Audit seedTree: mid-tree questions must be attributes (no name guesses / group lists).
+ * Audit seedTree: mid-tree questions must be attributes (no name guesses / fingerprints).
  * Run: npx tsx scripts/rebuild-seed.ts
  */
 import { seedTree, type TreeNode } from '../src/tree.ts'
@@ -41,6 +41,8 @@ function audit(seed: TreeNode) {
     const t = node.text
     if (/same bunch|\d+\s*options/i.test(t)) bad.push({ text: t, reason: 'group-list' })
     if (/come before|alphabetically/i.test(t)) bad.push({ text: t, reason: 'alphabet' })
+    if (/known for/i.test(t)) bad.push({ text: t, reason: 'known-for' })
+    if (/handheld slab|re-recording/i.test(t)) bad.push({ text: t, reason: 'banned-phrase' })
     const m = t.match(/^Is it (.+)\?$/i)
     if (m) {
       const cand = m[1].toLowerCase()
@@ -56,6 +58,23 @@ function audit(seed: TreeNode) {
     if (leafSet.has(stripped) || bare.has(stripped)) {
       bad.push({ text: t, reason: 'bare-name-question' })
     }
+    // Flag unique proper nouns that match a leaf (celebrity/species fingerprint risk)
+    const caps = t.match(/\b[A-Z][a-zA-Z'-]{2,}\b/g) || []
+    const allow = new Set([
+      'Is', 'Does', 'Do', 'Can', 'Are', 'Was', 'Were', 'Has', 'Have', 'From', 'The',
+      'Typically', 'Usually', 'Primarily', 'Often', 'Associated', 'Among', 'Works',
+      'Marvel', 'Star', 'Wars', 'Disney', 'Pixar', 'Greek', 'Force', 'Christmas',
+      'Harry', 'Potter', 'Simpsons', 'American', 'Mainly', 'Commonly',
+    ])
+    for (const c of caps) {
+      if (allow.has(c)) continue
+      const cl = c.toLowerCase()
+      for (const leaf of leafSet) {
+        if (leaf.includes(cl) && cl.length >= 4) {
+          bad.push({ text: t, reason: 'proper-noun-leaf' })
+        }
+      }
+    }
     walk(node.yes)
     walk(node.no)
   }
@@ -65,11 +84,15 @@ function audit(seed: TreeNode) {
 
 const bad = audit(seedTree)
 console.log({ leaves: countLeaves(seedTree), violations: bad.length })
-for (const t of ['a computer', 'a smartphone', 'a laptop', 'a tablet', 'a dog']) {
-  console.log(t, findPath(seedTree, t)?.join(' → '))
+for (const t of [
+  'a computer', 'a smartphone', 'a laptop', 'a tablet', 'a dog', 'a cat',
+  'a light switch', 'a light bulb', 'an outlet', 'a doorknob', 'a remote control',
+]) {
+  const p = findPath(seedTree, t)
+  console.log(t, p ? `(${p.length}q) ` + p.join(' → ') : 'MISSING')
 }
 if (bad.length) {
-  for (const b of bad.slice(0, 30)) console.error(b.reason, b.text)
+  for (const b of bad.slice(0, 40)) console.error(b.reason, b.text)
   process.exit(1)
 }
 console.log('OK: attribute-only seed')
