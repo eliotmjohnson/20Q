@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(__dirname, '..')
-const SEED_VERSION = 13
+const SEED_VERSION = 14
 const STORAGE_KEY = `twentyq-tree-v${SEED_VERSION}`
 
 function g(name) { return { kind: 'guess', name } }
@@ -508,15 +508,23 @@ function buildSeed() {
   const wallElectric = q(
     'Is it attached to a wall or building?',
     q(
-      'Is it mainly used to turn lights or power on and off?',
-      g('a light switch'),
+      'Does it produce light itself?',
+      g('a light bulb'),
       q(
-        'Does it produce light itself?',
-        g('a light bulb'),
+        'Does it provide sockets for plugs?',
+        g('an outlet'),
         q(
-          'Does it provide sockets for plugs?',
-          g('an outlet'),
-          g('a thermostat'),
+          'Do you operate it by hand to control something else?',
+          q(
+            'Is it mainly for temperature or climate?',
+            g('a thermostat'),
+            q(
+              'Does it mainly adjust how bright the lights are?',
+              g('a dimmer'),
+              g('a light switch'),
+            ),
+          ),
+          g('a smoke detector'),
         ),
       ),
     ),

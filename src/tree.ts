@@ -15,11 +15,11 @@ export type GuessNode = {
 export type TreeNode = QuestionNode | GuessNode
 
 /** Bumped so seed-tune early splits replace old localStorage trees. */
-export const STORAGE_KEY = 'twentyq-tree-v13'
+export const STORAGE_KEY = 'twentyq-tree-v14'
 export const MAX_QUESTIONS = 20
 
 /** Bump this whenever the seeded question order/content changes. */
-export const SEED_VERSION = 13
+export const SEED_VERSION = 14
 export const SEED_VERSION_KEY = 'twentyq-seed-version'
 export const SESSION_KEY = 'twentyq-session'
 
@@ -87,7 +87,7 @@ export function clearSession(): void {
   }
 }
 
-/** Seed v13: classic 20Q attribute questions only; names only on final guess. */
+/** Seed v14: classic 20Q attribute questions only; names only on final guess. */
 export const seedTree: TreeNode = {
   kind: 'question',
   text: "Is it a living thing?",
@@ -833,17 +833,27 @@ export const seedTree: TreeNode = {
         text: "Is it attached to a wall or building?",
         yes: {
           kind: 'question',
-          text: "Is it mainly used to turn lights or power on and off?",
-          yes: { kind: 'guess', name: "a light switch" },
+          text: "Does it produce light itself?",
+          yes: { kind: 'guess', name: "a light bulb" },
           no: {
             kind: 'question',
-            text: "Does it produce light itself?",
-            yes: { kind: 'guess', name: "a light bulb" },
+            text: "Does it provide sockets for plugs?",
+            yes: { kind: 'guess', name: "an outlet" },
             no: {
               kind: 'question',
-              text: "Does it provide sockets for plugs?",
-              yes: { kind: 'guess', name: "an outlet" },
-              no: { kind: 'guess', name: "a thermostat" },
+              text: "Do you operate it by hand to control something else?",
+              yes: {
+                kind: 'question',
+                text: "Is it mainly for temperature or climate?",
+                yes: { kind: 'guess', name: "a thermostat" },
+                no: {
+                  kind: 'question',
+                  text: "Does it mainly adjust how bright the lights are?",
+                  yes: { kind: 'guess', name: "a dimmer" },
+                  no: { kind: 'guess', name: "a light switch" },
+                },
+              },
+              no: { kind: 'guess', name: "a smoke detector" },
             },
           },
         },
